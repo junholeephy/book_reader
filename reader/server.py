@@ -43,6 +43,10 @@ DPI = int(CFG["dpi"])
 # 이 변환은 서버 안에서만 일어난다. 뷰어와 파일 계약은 책 번호만 다룬다.
 BOOK_PAGE_OFFSET = int(CFG["pageOffset"])
 PDF_PAGE_COUNT = int(CFG["pageCount"])
+
+# 워커가 멈췄을 때 언제까지 기다릴지. 실측: 요약 20~36초, 심화 172~248초.
+SUMMARY_TIMEOUT = int(CFG.get("summaryTimeout", 300))
+DETAIL_TIMEOUT = int(CFG.get("detailTimeout", 900))
 MIN_BOOK_PAGE = 1 - BOOK_PAGE_OFFSET          # -33 (표지/서문 영역)
 MAX_BOOK_PAGE = PDF_PAGE_COUNT - BOOK_PAGE_OFFSET  # 676
 
@@ -375,12 +379,24 @@ def run_worker(qid: str, mode: str) -> None:
     q = json.loads((QA / "questions" / f"{qid}.json").read_text())
     sid = session_for(q.get("chapter") or chapter_key(q["bookPage"]))
 
+    # 스트림을 끝까지 읽는 구조라 for 루프 자체에는 시간 제한이 없다.
+    # claude 가 멈추면 영원히 기다리게 되므로 감시 스레드가 끊는다.
+    limit = SUMMARY_TIMEOUT if mode == "summary" else DETAIL_TIMEOUT
+    timed_out = threading.Event()
+
     proc = subprocess.Popen(
         [str(TUTOR / "ask.sh"), qid, mode, sid],
         cwd=str(TUTOR),
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, bufsize=1,
     )
+
+    def watchdog():
+        if not stopped.wait(limit):
+            timed_out.set()
+            proc.kill()
+    stopped = threading.Event()
+    threading.Thread(target=watchdog, daemon=True).start()
 
     payload, progress, seen = None, [], set()
     activity, tokens, last_write = None, 0, 0.0
@@ -441,8 +457,14 @@ def run_worker(qid: str, mode: str) -> None:
     activity, tokens = None, 0
     flush_activity(force=True)
 
+    stopped.set()
     stderr = proc.stderr.read()
     proc.wait(timeout=60)
+
+    if timed_out.is_set():
+        write_answer(qid, {"status": "error",
+                           "error": f"{limit}초를 넘겨 중단했습니다. 다시 시도해 보십시오."})
+        return
     elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
 
     if proc.returncode != 0:
@@ -678,10 +700,39 @@ def preflight() -> None:
         raise SystemExit("기동 실패:\n  - " + "\n  - ".join(problems))
 
 
+def reap_orphans() -> int:
+    """이전 프로세스에서 진행 중이던 답변을 정리한다.
+
+    서버가 죽거나 재시작되면 워커도 함께 죽는데, answers/*.json 은
+    'running' 인 채로 남는다. 아무도 고쳐주지 않아서 화면에는
+    '33분째 조사 중' 처럼 영원히 진행 중으로 보인다 — 실제로는 아무것도 돌지 않는다.
+    """
+    n = 0
+    for f in (QA / "answers").glob("*.json"):
+        # 질문이 지워진 뒤 워커가 답을 마치면 짝 없는 답변 파일이 남는다.
+        # 화면에는 안 보이지만 계속 쌓이므로 함께 치운다.
+        if not (QA / "questions" / f.name).exists():
+            f.unlink()
+            continue
+        try:
+            d = json.loads(f.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if d.get("status") in ("running", "pending"):
+            d.update({"status": "error", "activity": None,
+                      "error": "서버가 다시 시작되어 중단되었습니다. 다시 시도를 눌러 주십시오."})
+            f.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+            n += 1
+    return n
+
+
 def main() -> None:
     preflight()
     for d in (QA / "questions", QA / "answers", QA / "crops", CACHE):
         d.mkdir(parents=True, exist_ok=True)
+    orphans = reap_orphans()
+    if orphans:
+        print(f"  정리    : 이전 실행에서 멈춘 답변 {orphans}건을 실패로 표시했습니다")
     threading.Thread(target=_worker_loop, daemon=True).start()
     for h in HOSTS:
         shown = "localhost" if h == "127.0.0.1" else h

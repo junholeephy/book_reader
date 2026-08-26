@@ -330,6 +330,61 @@ class TestChapterSessions(unittest.TestCase):
         self.assertEqual(saved["chapter"], "6")
 
 
+class TestOrphanReaping(unittest.TestCase):
+    """서버가 재시작되면 워커도 죽는데 answers/*.json 은 'running' 으로 남는다.
+    화면에는 '33분째 조사 중' 으로 보이지만 실제로는 아무것도 돌지 않는다."""
+
+    def _qa(self, tmp):
+        qa = Path(tmp)
+        (qa / "questions").mkdir(); (qa / "answers").mkdir()
+        return qa
+
+    def _pair(self, qa, qid, status):
+        (qa / "questions" / f"{qid}.json").write_text(json.dumps({"id": qid, "bookPage": 1}))
+        (qa / "answers" / f"{qid}.json").write_text(json.dumps(
+            {"id": qid, "status": status, "activity": "생각 정리 중", "startedAt": "2026-01-01T00:00:00Z"}))
+
+    def test_running_becomes_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            self._pair(qa, "a", "running")
+            self._pair(qa, "b", "pending")
+            with mock.patch.object(server, "QA", qa):
+                self.assertEqual(server.reap_orphans(), 2)
+            for qid in ("a", "b"):
+                d = json.loads((qa / "answers" / f"{qid}.json").read_text())
+                self.assertEqual(d["status"], "error")
+                self.assertIn("다시 시작", d["error"])
+                self.assertIsNone(d["activity"], "진행 표시도 지워야 한다")
+
+    def test_finished_answers_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            self._pair(qa, "done", "summary_ready")
+            with mock.patch.object(server, "QA", qa):
+                self.assertEqual(server.reap_orphans(), 0)
+            self.assertEqual(json.loads((qa / "answers" / "done.json").read_text())["status"],
+                             "summary_ready")
+
+    def test_answer_without_question_is_removed(self):
+        """질문을 지운 뒤 워커가 답을 마치면 짝 없는 파일이 남는다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            (qa / "answers" / "ghost.json").write_text('{"id":"ghost","status":"summary_ready"}')
+            with mock.patch.object(server, "QA", qa):
+                server.reap_orphans()
+            self.assertFalse((qa / "answers" / "ghost.json").exists())
+
+    def test_corrupt_answer_does_not_stop_reaping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            (qa / "questions" / "bad.json").write_text("{}")
+            (qa / "answers" / "bad.json").write_text("{ not json")
+            self._pair(qa, "good", "running")
+            with mock.patch.object(server, "QA", qa):
+                self.assertEqual(server.reap_orphans(), 1)
+
+
 class TestHostBinding(unittest.TestCase):
     """이 도구는 이 컴퓨터에서도, 다른 기기에서도 쓴다.
     tailscale 을 골라도 로컬 접속을 막으면 안 된다."""
