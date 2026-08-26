@@ -213,6 +213,9 @@ node reader/check_layout.mjs
 | [build-and-test-summary.md](aidlc-docs/construction/build-and-test/build-and-test-summary.md) | 테스트 결과, 품질 게이트 판정 |
 | [audit.md](aidlc-docs/audit.md) | 전체 대화·결정 기록 |
 
+워크플로 규칙 파일 자체(`.aidlc-rule-details/`)는 제3자 콘텐츠라 저장소에 담지 않았습니다.
+설계 결정의 **결과물**만 `aidlc-docs/` 에 있습니다. [NOTICE.md](NOTICE.md) 참조.
+
 ### 설계가 측정으로 뒤집힌 지점들
 
 문서를 읽을 때 참고가 되도록, 추측이 틀렸던 곳을 모아 둡니다.
@@ -274,10 +277,7 @@ git check-ignore -v refs/book.txt cache/pages/1.png qa/state.json config.json
 
 코드와 문서는 [MIT License](LICENSE) 입니다.
 
-적용 범위에서 **제외**되는 것:
-
-- `.aidlc-rule-details/` — 제3자 워크플로 규칙(AWS AI-DLC). 원저작자의 조건을 따릅니다
-- 사용자가 제공하는 PDF 와 그로부터 파생된 모든 것
+사용자가 제공하는 PDF 와 그로부터 파생된 모든 것은 적용 범위가 아닙니다.
 
 제3자 구성 요소(KaTeX MIT · Poppler GPL-2.0 · Claude Code)와
 보증 관련 고지는 [NOTICE.md](NOTICE.md) 에 정리했습니다.

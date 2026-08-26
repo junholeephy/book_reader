@@ -47,7 +47,14 @@ git check-ignore -v refs/book.txt cache/pages/1.png qa/state.json config.json
 | [KaTeX](https://katex.org) | MIT | `setup.sh` 가 npm 레지스트리에서 내려받아 `reader/vendor/` 에 둡니다. **저장소에는 포함되지 않습니다** (gitignore) |
 | [Poppler](https://poppler.freedesktop.org) (`pdftoppm`, `pdftotext`, `pdfinfo`) | GPL-2.0 | 외부 명령으로 **호출만** 합니다. 링크하지 않으므로 이 저장소의 코드에 GPL 의무가 전이되지 않습니다. 별도로 설치해야 합니다 (`brew install poppler`) |
 | [Claude Code](https://claude.com/claude-code) | Anthropic 이용약관 | 답변 생성에 `claude` CLI 를 호출합니다. 사용자 본인의 계정과 약관이 적용됩니다 |
-| `.aidlc-rule-details/` | 표기 없음 | AWS AI-DLC 워크플로 규칙. 이 저장소가 저작권을 주장하지 않으며 MIT 적용 대상이 아닙니다. 원저작자의 조건을 따릅니다 |
+
+### 저장소에 담지 않은 것
+
+개발에는 [AWS AI-DLC](https://github.com/awslabs/ai-driven-development-lifecycle) 워크플로를 썼고
+그 규칙 파일은 `.aidlc-rule-details/` 에 있습니다. **이 저장소에는 포함하지 않습니다** —
+`book_reader` 의 일부가 아니라 개발에 쓴 도구이고, 라이선스 표기가 없어 재배포할 근거가 없습니다.
+
+설계 결정의 **결과물**(`aidlc-docs/`)은 이 저장소에서 작성된 것이므로 포함됩니다.
 
 ## 5. 보증 없음
 

@@ -537,3 +537,13 @@ The Operations stage will eventually include:
 - Application code: Workspace root (NEVER in aidlc-docs/)
 - Documentation: aidlc-docs/ only
 - Project structure: See code-generation.md for patterns by project type
+
+---
+
+## 저장소 참고
+
+이 파일이 참조하는 `.aidlc-rule-details/` 는 **저장소에 포함되어 있지 않습니다.**
+제3자(AWS AI-DLC) 콘텐츠라 재배포하지 않습니다 — `NOTICE.md` 참조.
+
+AI-DLC 워크플로로 개발하려면 규칙 파일을 따로 설치해야 합니다.
+설치하지 않아도 `book_reader` 자체를 쓰고 고치는 데에는 지장이 없습니다.
