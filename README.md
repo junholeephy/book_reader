@@ -66,6 +66,8 @@ cd book_reader
 | `tailscale` | 내 tailnet 기기에서만 — 태블릿·노트북에서 볼 때 권장 |
 | `0.0.0.0` | 같은 네트워크의 누구나 (권하지 않음) |
 
+태블릿 Termux 설정은 [docs/termux-setup.md](docs/termux-setup.md) 참조.
+
 Tailscale 을 안 쓰면 SSH 터널도 됩니다: `ssh -N -L 8765:localhost:8765 <user>@<host>`.
 `start.sh` 는 SSH 세션을 감지하면 접속 정보에 맞춘 터널 명령을 출력합니다.
 자세한 내용은 [reader/README.md](reader/README.md#다른-기기에서-보기).

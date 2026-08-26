@@ -28,6 +28,11 @@ PDF 교재를 읽으면서 막히는 부분을 바로 물어보는 로컬 도구
 
 ### 태블릿 + Termux (권장 조합)
 
+전체 설정 절차는 **[docs/termux-setup.md](../docs/termux-setup.md)** 에 정리했습니다.
+(SSH 키, `~/.ssh/config`, `.bashrc`, 문제 해결)
+
+요약:
+
 Termux 에서 SSH 로 붙어 서버를 띄우고, 크롬으로 봅니다.
 
 ```bash
