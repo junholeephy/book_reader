@@ -59,9 +59,12 @@ BOOK_DIR=~/coding_work/qc_book             # 맥에서의 저장소 경로
 # 서버를 켜고 주소를 띄운다
 book() {
   local out url
-  out=$(ssh "$BOOK_HOST" "cd $BOOK_DIR && ./reader/serve.sh") || { echo "$out"; return 1; }
+  out=$(ssh -n "$BOOK_HOST" "cd $BOOK_DIR && ./reader/serve.sh") || { echo "$out"; return 1; }
   echo "$out"
-  url=$(echo "$out" | grep -o 'http://[^ ]*' | head -1)
+  # 출력에서 긁지 말고 서버에 직접 물어본다.
+  # 서버는 로컬과 tailnet 주소를 동시에 열기 때문에, 첫 줄을 집으면
+  # localhost 를 가져오게 되고 태블릿에서는 자기 자신을 가리켜 아무것도 안 뜬다.
+  url=$(ssh -n "$BOOK_HOST" "$BOOK_DIR/reader/serve.sh url")
   [ -n "$url" ] || return 0
   if command -v termux-open-url >/dev/null 2>&1; then
     termux-open-url "$url"                 # 크롬이 바로 열린다

@@ -74,10 +74,16 @@ SSH 가 끊기면 서버도 같이 죽습니다. `serve.sh` 는 `nohup` 으로 �
 연결이 끊겨도 살아남습니다. 태블릿에서는 세션이 자주 끊깁니다.
 
 ```bash
-./reader/serve.sh          # 기동 (이미 떠 있으면 주소만 알려준다)
-./reader/serve.sh stop     # 중지
-./reader/serve.sh log      # 로그
+./reader/serve.sh              # 기동 (이미 떠 있으면 주소만 알려준다)
+./reader/serve.sh stop         # 중지
+./reader/serve.sh log          # 로그
+./reader/serve.sh url          # 다른 기기에서 쓸 주소만 (스크립트용)
+./reader/serve.sh url local    # 이 컴퓨터에서 쓸 주소만
 ```
+
+> 서버는 로컬과 tailnet 주소를 **동시에** 엽니다.
+> 스크립트에서 주소가 필요하면 출력을 긁지 말고 `serve.sh url` 을 쓰십시오.
+> 첫 줄을 집으면 `localhost` 를 가져오는데, 태블릿에서는 자기 자신을 가리킵니다.
 
 > **PATH 주의.** `ssh host "명령"` 은 로그인 셸이 아니라서 macOS 기본 PATH 에
 > `/opt/homebrew/bin` 이 없습니다. poppler 가 통째로 안 보여

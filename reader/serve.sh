@@ -26,13 +26,22 @@ import config
 for h in config.resolve_hosts('$HOST')[0]:
     print('localhost' if h == '127.0.0.1' else h)"
 }
-addr() { addrs | head -1; }
+# 다른 기기에서 쓸 주소. 로컬이 아닌 것이 있으면 그것, 없으면 localhost.
+# SSH 로 원격에서 부르면 localhost 는 부르는 쪽 기기를 가리켜 쓸모가 없다.
+remote_addr() { addrs | grep -v '^localhost$' | head -1 || true; }
+addr() { a="$(remote_addr)"; [ -n "$a" ] && echo "$a" || echo localhost; }
 running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 
 case "${1:-start}" in
   stop)
     running && { kill "$(cat "$PIDFILE")"; rm -f "$PIDFILE"; echo "중지했습니다."; } \
             || echo "떠 있지 않습니다."
+    ;;
+  url)                      # 스크립트에서 주소만 받아갈 때
+    case "${2:-remote}" in
+      local)  echo "http://localhost:$PORT" ;;
+      *)      echo "http://$(addr):$PORT" ;;
+    esac
     ;;
   log)
     tail -n "${2:-40}" "$LOG" 2>/dev/null || echo "로그가 없습니다."
@@ -54,9 +63,16 @@ case "${1:-start}" in
       echo "기동했습니다 (pid $(cat "$PIDFILE"))."
     fi
     echo
-    addrs | while read -r a; do echo "    http://$a:$PORT"; done
+    if [ -n "${SSH_CONNECTION:-}" ]; then
+      # 원격에서 불렀다. 여기서 쓸 주소를 먼저 보여준다.
+      R="$(remote_addr)"
+      [ -n "$R" ] && echo "    http://$R:$PORT      <- 지금 쓰는 기기에서"
+      echo "    http://localhost:$PORT   (책이 있는 컴퓨터에서)"
+    else
+      addrs | while read -r a; do echo "    http://$a:$PORT"; done
+    fi
     echo
     echo "  중지: ./reader/serve.sh stop   로그: ./reader/serve.sh log"
     ;;
-  *) echo "usage: serve.sh [start|stop|log]" >&2; exit 2 ;;
+  *) echo "usage: serve.sh [start|stop|log|url [local|remote]]" >&2; exit 2 ;;
 esac
