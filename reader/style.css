@@ -1,0 +1,242 @@
+:root {
+  --bg: #f6f5f2;
+  --panel: #ffffff;
+  --ink: #1c1b19;
+  --muted: #6d6a64;
+  --line: #ddd9d2;
+  --accent: #2f6f4e;
+  --accent-soft: #e7f1eb;
+  --warn: #b3541e;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%;
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.6 -apple-system, "SF Pro Text", "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
+}
+
+#app { display: flex; height: 100vh; }
+
+/* ---------- 공통 ---------- */
+
+.toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  background: var(--panel); flex: 0 0 auto;
+}
+.spacer { flex: 1; }
+.muted { color: var(--muted); font-size: 13px; }
+
+button {
+  font: inherit; font-size: 13px;
+  padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink); cursor: pointer;
+}
+button:hover { background: var(--accent-soft); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; background: var(--panel); border-color: var(--line); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.pagebox { font-size: 13px; color: var(--muted); }
+#pageInput {
+  width: 68px; font: inherit; font-size: 13px; text-align: right;
+  padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
+}
+
+/* ---------- 좌: 책 ---------- */
+
+#book { display: flex; flex-direction: column; min-width: 320px; flex: 1 1 58%; }
+
+#pageScroll { flex: 1; min-width: 0; overflow: auto; padding: 16px; position: relative;
+             user-select: none; -webkit-user-select: none; }
+
+#pages { width: 100%; max-width: 900px; }
+
+.pageBox {
+  position: relative; margin: 0 auto 18px; background: #fff;
+  box-shadow: 0 1px 12px rgba(0,0,0,.13); line-height: 0;
+}
+.pageBox img { display: block; width: 100%; height: 100%; }
+.pageBox.current { outline: 2px solid var(--accent); outline-offset: 3px; }
+.pageBox .pageNo {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 3px;
+  text-align: center; font-size: 11px; color: var(--muted); line-height: 1.6;
+}
+.pageBox .tl {
+  position: absolute; inset: 0;
+  line-height: 1; color: transparent;
+  user-select: none; -webkit-user-select: none;
+}
+.pageBox .tl span {
+  position: absolute; white-space: pre; transform-origin: 0 0;
+  cursor: text; user-select: text; -webkit-user-select: text;
+}
+.pageBox .tl ::selection { background: rgba(47,111,78,.28); }
+
+
+/* 영역 선택 모드 */
+#regionOverlay { position: absolute; inset: 0; cursor: crosshair; background: rgba(0,0,0,.04); }
+#regionBox {
+  position: absolute; display: none;
+  border: 2px solid var(--accent); background: rgba(47,111,78,.14);
+}
+#book.region-mode .tl { pointer-events: none; user-select: none; }
+
+#textPanel {
+  flex: 0 0 auto; max-height: 34%; overflow: auto;
+  border-top: 1px solid var(--line); background: var(--panel);
+}
+#textPanel summary { padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--muted); }
+#textPanel pre {
+  margin: 0; padding: 0 12px 12px; white-space: pre-wrap;
+  font: 12px/1.5 "SF Mono", Menlo, monospace; color: #3a3833;
+}
+
+/* ---------- 구분선 ---------- */
+
+#divider { flex: 0 0 6px; cursor: col-resize; background: var(--line); }
+#divider:hover { background: var(--accent); }
+
+/* ---------- 우: Q&A ---------- */
+
+#qa { display: flex; flex-direction: column; min-width: 340px; flex: 1 1 42%; background: var(--panel); }
+
+/* position: relative 가 반드시 필요하다.
+   KaTeX 는 접근성용 MathML 을 .katex-mathml { position: absolute } 로 숨겨두는데,
+   이 컨테이너가 positioned 가 아니면 그 요소들의 기준이 문서 전체가 되어
+   overflow 로 잘리지 않고 문서 높이를 스레드 내용만큼 늘려버린다
+   (실측: 문서가 12,680px 헛스크롤). .qaItem 에도 같은 이유로 걸어 이중으로 막는다. */
+#thread { flex: 1; overflow: auto; padding: 12px; position: relative; }
+
+.qaItem { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; position: relative; }
+.qaItem .q { font-weight: 600; }
+.qaItem .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.qaItem blockquote {
+  margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--line);
+  color: var(--muted); font-size: 13px; background: var(--bg);
+}
+.qaItem img.crop { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; }
+.qaItem .body { margin-top: 10px; }
+.qaItem .detail { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.qaItem .sources { margin-top: 10px; font-size: 12px; color: var(--muted); }
+.qaItem .sources a { color: var(--accent); }
+.pageRef {
+  display: inline-block; padding: 1px 6px; margin-right: 4px;
+  border: 1px solid var(--line); border-radius: 4px; cursor: pointer; background: var(--bg);
+}
+.pageRef:hover { border-color: var(--accent); color: var(--accent); }
+
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+.badge.wait { background: #f3ecd9; color: #7a5c1a; }
+.badge.run  { background: var(--accent-soft); color: var(--accent); }
+.badge.err  { background: #f7e2d8; color: var(--warn); }
+
+/* ---------- 입력부 ---------- */
+
+#composer { flex: 0 0 auto; border-top: 1px solid var(--line); padding: 10px 12px; }
+#contextChips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  font-size: 12px; padding: 3px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+}
+.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.chip button { border: 0; background: transparent; padding: 0 2px; color: inherit; font-size: 13px; }
+.chip img { height: 30px; border-radius: 3px; }
+
+#questionInput {
+  width: 100%; min-height: 68px; resize: vertical; font: inherit;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.composer-row { display: flex; align-items: center; margin-top: 8px; }
+#askBtn { background: var(--accent); border-color: var(--accent); color: #fff; padding: 7px 16px; }
+#askBtn:hover { opacity: .9; }
+
+.katex { font-size: 1.03em; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+
+/* ---------- 진행 상황 (FR-10) ---------- */
+
+.progress {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 10px; padding: 7px 10px; border-radius: 8px;
+  background: var(--accent-soft); color: var(--accent); font-size: 13px;
+}
+.progress .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite; flex: 0 0 auto;
+}
+@keyframes pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .progress .dot { animation: none; opacity: .8; } }
+
+.progress-past { margin-top: 6px; }
+.progress-past summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+.progress-past ol { margin: 6px 0 0; padding-left: 20px; font-size: 12px; color: var(--muted); }
+.progress-past li { margin: 2px 0; }
+
+/* ---------- 목차 / 검색 패널 (FR-11, FR-12) ---------- */
+
+/* 패널은 본문을 덮지 않고 밀어낸다. 목차를 보면서 지면도 같이 볼 수 있어야 한다. */
+#bookBody { flex: 1; display: flex; min-height: 0; }
+
+#sidePanel {
+  flex: 0 0 300px; min-width: 0;
+  display: flex; flex-direction: column;
+  background: var(--panel); border-right: 1px solid var(--line);
+}
+#sidePanel[hidden] { display: none; }
+.side-head { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }
+#searchInput {
+  flex: 1; font: inherit; font-size: 13px; padding: 6px 9px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+}
+#sideClose { padding: 4px 9px; }
+
+#tocList, #searchResults { flex: 1; overflow: auto; padding: 6px 0; }
+
+.toc-item {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 3px 10px; font-size: 13px; cursor: pointer; line-height: 1.45;
+}
+.toc-item:hover { background: var(--accent-soft); }
+.toc-item.d1 { font-weight: 600; margin-top: 6px; }
+.toc-item.d2 { padding-left: 22px; }
+.toc-item.d3 { padding-left: 38px; color: var(--muted); }
+.toc-item.here { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.toc-label { flex: 1; }
+.toc-count {
+  flex: 0 0 auto; font-size: 11px; padding: 0 6px; border-radius: 999px;
+  background: var(--accent); color: #fff; font-weight: 600;
+}
+
+.search-hit { padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.search-hit:hover { background: var(--accent-soft); }
+.hit-head { font-size: 12px; font-weight: 600; }
+.hit-snip { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+
+/* ---------- 렌즈 필터 (FR-13) ---------- */
+
+#lensBar {
+  display: flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--bg);
+}
+#lensBar button { padding: 3px 9px; font-size: 12px; }
+#lensBar .muted { margin-right: 2px; }
+#thread .empty { padding: 24px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+.side-head .pin {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer;
+}
+.zoom { display: inline-flex; align-items: center; gap: 4px; }
+.zoom button { padding: 3px 9px; font-size: 14px; line-height: 1; }
+#zoomLevel { min-width: 38px; text-align: center; }
+
+/* 대화가 길어져 느려질 때의 안내 */
+#slowHint {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; font-size: 13px;
+  background: #f7efdc; color: #7a5c1a; border-bottom: 1px solid #e6d9b8;
+}
+#slowHint[hidden] { display: none; }
+#slowHint button { margin-left: auto; padding: 3px 9px; font-size: 12px; }

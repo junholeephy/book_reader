@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "required": ["summary", "bookPages"],
+  "properties": {
+    "summary": {"type": "string", "description": "핵심 요약. 3~5문장. LaTeX는 $...$ 형식"},
+    "bookPages": {"type": "array", "items": {"type": "integer"}, "description": "근거 책 페이지 번호"},
+    "webLinks": {"type": "array", "items": {
+      "type": "object",
+      "properties": {"title": {"type": "string"}, "url": {"type": "string"}}}}
+  }
+}

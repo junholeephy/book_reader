@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N&amp;C 리딩 어시스턴트</title>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== 좌: 책 본문 ===================== -->
+  <section id="book" data-testid="book-pane">
+    <header class="toolbar">
+      <button data-testid="book-prev-button" id="prevBtn" title="이전 페이지 (←)">◀</button>
+      <label class="pagebox">
+        p.<input data-testid="book-page-input" id="pageInput" type="number" value="1">
+        <span id="pageRange" class="muted"></span>
+      </label>
+      <button data-testid="book-next-button" id="nextBtn" title="다음 페이지 (→)">▶</button>
+      <span class="spacer"></span>
+      <span class="zoom">
+        <button data-testid="book-zoom-out" id="zoomOut" title="작게 (−) — 앞뒤 페이지를 함께 봅니다">−</button>
+        <span data-testid="book-zoom-level" id="zoomLevel" class="muted">100%</span>
+        <button data-testid="book-zoom-in" id="zoomIn" title="크게 (+)">+</button>
+      </span>
+      <button data-testid="book-toc-toggle" id="tocBtn" title="목차 (T)">☰ 목차</button>
+      <button data-testid="book-search-toggle" id="searchBtn" title="본문 검색 (/)">🔍 검색</button>
+      <button data-testid="book-region-toggle" id="regionBtn" title="수식·그림 영역을 사각형으로 지목">▣ 영역 선택</button>
+      <button data-testid="book-text-toggle" id="textBtn" title="추출 텍스트 보기">≡ 텍스트</button>
+    </header>
+
+    <div id="bookBody">
+    <aside data-testid="book-side-panel" id="sidePanel" hidden>
+      <div class="side-head">
+        <input data-testid="book-search-input" id="searchInput" type="search"
+               placeholder="본문 검색 (수식 제외)">
+        <label class="pin" title="고르고 나서도 패널을 열어둡니다">
+          <input data-testid="book-side-pin" id="sidePin" type="checkbox"> 고정
+        </label>
+        <button data-testid="book-side-close" id="sideClose" title="닫기 (Esc)">×</button>
+      </div>
+      <div data-testid="book-toc-list" id="tocList"></div>
+      <div data-testid="book-search-results" id="searchResults" hidden></div>
+    </aside>
+
+    <!-- 연속 스크롤: 모든 페이지의 자리를 미리 잡아두고,
+         화면 근처의 페이지만 실제로 그린다 (710쪽을 다 올리면 200MB가 넘는다). -->
+    <div id="pageScroll">
+      <div data-testid="book-pages" id="pages"></div>
+      <div id="regionOverlay" hidden><div id="regionBox"></div></div>
+    </div>
+    </div>
+
+    <details data-testid="book-extracted-text" id="textPanel">
+      <summary>추출 텍스트 (수식은 소실되어 있습니다 — 원본은 위 이미지)</summary>
+      <pre id="textPanelBody"></pre>
+    </details>
+  </section>
+
+  <div id="divider" data-testid="pane-divider"></div>
+
+  <!-- ===================== 우: Q&A ===================== -->
+  <section id="qa" data-testid="qa-pane">
+    <header class="toolbar">
+      <strong>질문하기</strong>
+      <span class="spacer"></span>
+      <span data-testid="qa-status" id="status" class="muted">준비됨</span>
+      <span class="spacer"></span>
+      <button data-testid="qa-reset-button" id="resetBtn" title="현재 장의 대화 맥락만 초기화합니다">↺ 이 장 초기화</button>
+    </header>
+
+    <div data-testid="qa-lens" id="lensBar">
+      <span class="muted">보기</span>
+      <button data-lens="page">이 페이지</button>
+      <button data-lens="section" class="on">이 절</button>
+      <button data-lens="chapter">이 장</button>
+      <button data-lens="all">전체</button>
+      <span class="spacer"></span>
+      <span data-testid="qa-lens-scope" id="lensScope" class="muted"></span>
+    </div>
+
+    <div data-testid="qa-slow-hint" id="slowHint" hidden></div>
+
+    <div data-testid="qa-thread" id="thread"></div>
+
+    <footer id="composer">
+      <div data-testid="qa-context-chips" id="contextChips"></div>
+      <textarea data-testid="qa-question-input" id="questionInput"
+                placeholder="이 부분이 왜 이렇게 되는지 물어보세요.  (Ctrl+Enter 로 전송)"></textarea>
+      <div class="composer-row">
+        <span class="muted" id="contextHint"></span>
+        <span class="spacer"></span>
+        <button data-testid="qa-submit-button" id="askBtn">질문 보내기</button>
+      </div>
+    </footer>
+  </section>
+
+</div>
+
+<script src="vendor/katex/katex.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

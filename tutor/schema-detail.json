@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "required": ["detail", "bookPages"],
+  "properties": {
+    "detail": {"type": "string", "description": "심화 설명. 배경 원리, 왜 그런지, 트레이드오프까지. 마크다운 + LaTeX"},
+    "bookPages": {"type": "array", "items": {"type": "integer"}},
+    "webLinks": {"type": "array", "items": {
+      "type": "object",
+      "properties": {"title": {"type": "string"}, "url": {"type": "string"}}}}
+  }
+}

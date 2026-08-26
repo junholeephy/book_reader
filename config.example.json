@@ -1,0 +1,10 @@
+{
+  "pdf": "/path/to/your/book.pdf",
+  "pageOffset": "auto",
+  "tocPages": "auto",
+  "python": "python3",
+  "port": 8765,
+  "dpi": 150,
+  "tutorDir": "~/.qc-book-tutor",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+}
