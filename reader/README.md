@@ -26,6 +26,35 @@ PDF 교재를 읽으면서 막히는 부분을 바로 물어보는 로컬 도구
 
 기동할 때 어느 쪽인지 한 줄로 찍어줍니다.
 
+### 태블릿 + Termux (권장 조합)
+
+Termux 에서 SSH 로 붙어 서버를 띄우고, 크롬으로 봅니다.
+
+```bash
+# 태블릿 Termux 의 ~/.bashrc
+alias mac='ssh junho@lees-mac-mini'
+alias book='ssh junho@lees-mac-mini "cd ~/coding_work/qc_book && ./reader/serve.sh"'
+alias bookstop='ssh junho@lees-mac-mini "~/coding_work/qc_book/reader/serve.sh stop"'
+```
+
+`book` 을 치면 주소가 나옵니다. 크롬에서 그 주소를 열면 됩니다.
+
+**`start.sh` 가 아니라 `serve.sh` 를 쓰십시오.** `start.sh` 는 포그라운드라
+SSH 가 끊기면 서버도 같이 죽습니다. `serve.sh` 는 `nohup` 으로 떼어내
+연결이 끊겨도 살아남습니다. 태블릿에서는 세션이 자주 끊깁니다.
+
+```bash
+./reader/serve.sh          # 기동 (이미 떠 있으면 주소만 알려준다)
+./reader/serve.sh stop     # 중지
+./reader/serve.sh log      # 로그
+```
+
+> **PATH 주의.** `ssh host "명령"` 은 로그인 셸이 아니라서 macOS 기본 PATH 에
+> `/opt/homebrew/bin` 이 없습니다. poppler 가 통째로 안 보여
+> `기동 실패: pdftoppm 없음` 이 납니다.
+> 스크립트와 `config.py` 가 알려진 설치 위치를 스스로 덧붙이므로
+> 이제는 그냥 동작합니다. 다른 경로에 설치하셨다면 `EXTRA_BIN_DIRS` 에 추가하십시오.
+
 ### Tailscale — 태블릿에서 보기 (권장)
 
 [Tailscale](https://tailscale.com) 은 내 기기들만 들어오는 암호화 사설망을 만듭니다.

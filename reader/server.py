@@ -8,7 +8,6 @@ import json
 import mimetypes
 import queue
 import re
-import shutil
 import subprocess
 import threading
 import uuid
@@ -628,9 +627,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def preflight() -> None:
     problems = []
-    for tool in ("pdftoppm", "pdftotext"):
-        if not shutil.which(tool):
-            problems.append(f"{tool} 없음 (brew install poppler)")
+    for tool in ("pdftoppm", "pdftotext", "pdfinfo"):
+        if not config.find_tool(tool):
+            problems.append(
+                f"{tool} 을(를) 찾지 못했습니다.\n"
+                f"      설치되어 있다면 PATH 문제입니다 — SSH 로 명령을 직접 실행하면\n"
+                f"      로그인 셸이 아니라 /opt/homebrew/bin 이 PATH 에 없습니다.\n"
+                f"      설치되어 있지 않다면: brew install poppler")
     if not PDF.exists():
         problems.append(f"PDF 없음: {PDF}")
     if not BOOK_TEXT.exists():

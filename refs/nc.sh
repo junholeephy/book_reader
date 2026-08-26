@@ -1,6 +1,11 @@
 #!/bin/bash
 # 책 조회 헬퍼. 경로와 오프셋은 프로젝트 루트의 config.json 에서 읽는다.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# SSH 로 명령을 직접 실행하면 로그인 셸이 아니라 /opt/homebrew/bin 이 PATH 에 없다.
+# poppler 가 통째로 안 보이므로 알려진 위치를 덧붙인다.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin"
+
 CFG="$ROOT/config.json"
 [ -f "$CFG" ] || { echo "config.json 이 없습니다. ./setup.sh <PDF> 를 먼저 실행하세요." >&2; exit 1; }
 read -r PDF OFFSET <<< "$(python3 -c "

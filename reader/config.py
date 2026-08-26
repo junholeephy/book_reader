@@ -5,14 +5,48 @@
 
 `config.json` 이 없으면 `setup.sh` 가 만든다. 손으로 써도 된다.
 """
-import json
-import re
-import subprocess
 import collections
+import json
+import os
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
+
+# SSH 로 명령을 직접 실행하면(ssh host "cmd") 로그인 셸이 아니라
+# ~/.zprofile 이 읽히지 않는다. macOS 기본 PATH(/etc/paths)에는 /opt/homebrew/bin 이 없어
+# poppler 가 통째로 안 보인다. 도구 위치를 PATH 에 맡기지 않는다.
+EXTRA_BIN_DIRS = [
+    "/opt/homebrew/bin",      # Homebrew (Apple Silicon)
+    "/usr/local/bin",         # Homebrew (Intel) / 직접 설치
+    "/opt/local/bin",         # MacPorts
+    "/usr/bin", "/bin",
+]
+
+
+def ensure_path() -> None:
+    """알려진 설치 위치를 PATH 에 덧붙인다. 이미 있으면 건드리지 않는다."""
+    current = os.environ.get("PATH", "").split(os.pathsep)
+    added = [d for d in EXTRA_BIN_DIRS if d not in current and Path(d).is_dir()]
+    if added:
+        os.environ["PATH"] = os.pathsep.join(current + added)
+
+
+def find_tool(name: str) -> str:
+    """실행 파일의 절대 경로. 못 찾으면 빈 문자열."""
+    ensure_path()
+    found = shutil.which(name)
+    if found:
+        return found
+    for d in EXTRA_BIN_DIRS:
+        cand = Path(d, name)
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return ""
+
 
 DEFAULTS = {
     "pdf": "",                 # 필수 — 읽을 PDF의 절대 경로
@@ -28,6 +62,7 @@ DEFAULTS = {
 
 
 def load() -> dict:
+    ensure_path()
     cfg = dict(DEFAULTS)
     if CONFIG_PATH.exists():
         cfg.update(json.loads(CONFIG_PATH.read_text()))
@@ -136,16 +171,42 @@ def resolve_host(host: str) -> tuple[str, str]:
     return host, f"{host} 로만 접속 가능"
 
 
+# Tailscale 은 CGNAT 대역(100.64.0.0/10)을 쓴다. 이 형태가 아니면 IP 가 아니다.
+_TS_IP = re.compile(r"^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$")
+
+
 def _tailscale_ip() -> str:
-    """이 머신의 tailnet IPv4 주소 (100.x.y.z)."""
+    """이 머신의 tailnet IPv4 주소.
+
+    CLI 를 먼저 쓰되 **출력을 반드시 검증한다.** GUI 세션이 없을 때
+    Tailscale.app 의 CLI 는 IP 대신 오류 문구를 stdout 으로 뱉는다
+    ("The Tailscale GUI failed to start: ..."). 그대로 바인딩 주소로 쓰면
+    'encoding of hostname failed' 로 죽는다 — SSH 로 띄웠을 때 실제로 겪었다.
+
+    CLI 가 실패하면 네트워크 인터페이스에서 직접 찾는다. 이쪽은 GUI 가 필요 없다.
+    """
     for exe in ("tailscale",
-                "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-                "/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale"):
-        try:
-            out = subprocess.run([exe, "ip", "-4"], capture_output=True, text=True,
-                                 timeout=10, stdin=subprocess.DEVNULL).stdout.strip()
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+                "/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale",
+                "/Applications/Tailscale.app/Contents/MacOS/Tailscale"):
+        path = shutil.which(exe) if "/" not in exe else (exe if Path(exe).exists() else None)
+        if not path:
             continue
-        if out:
-            return out.splitlines()[0].strip()
+        try:
+            out = subprocess.run([path, "ip", "-4"], capture_output=True, text=True,
+                                 timeout=10, stdin=subprocess.DEVNULL).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        for line in out.splitlines():
+            if _TS_IP.match(line.strip()):
+                return line.strip()
+
+    # CLI 가 안 되면 인터페이스에서 직접 (GUI 불필요)
+    try:
+        out = subprocess.run(["/sbin/ifconfig"], capture_output=True, text=True,
+                             timeout=10, stdin=subprocess.DEVNULL).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    for m in re.finditer(r"inet (\S+)", out):
+        if _TS_IP.match(m.group(1)):
+            return m.group(1)
     return ""

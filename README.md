@@ -29,7 +29,8 @@ Claude Code가 **책 원문과 (필요할 때) 웹을 근거로** 답합니다.
 git clone https://github.com/junholeephy/book_reader.git
 cd book_reader
 ./setup.sh /path/to/your/book.pdf --python /path/to/venv/bin/python
-./reader/start.sh
+./reader/start.sh          # 포그라운드
+./reader/serve.sh          # 백그라운드 (SSH 가 끊겨도 유지)
 ```
 
 `setup.sh` 가 하는 일:

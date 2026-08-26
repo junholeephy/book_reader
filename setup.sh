@@ -15,6 +15,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# SSH 로 명령을 직접 실행하면 로그인 셸이 아니라 /opt/homebrew/bin 이 PATH 에 없다.
+# poppler 가 통째로 안 보이므로 알려진 위치를 덧붙인다.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin"
+
 PDF="${1:-}"
 PY="python3"
 shift || true

@@ -2,6 +2,11 @@
 # 서버를 띄우고 브라우저를 연다. 한 번의 실행으로 둘 다.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# SSH 로 명령을 직접 실행하면 로그인 셸이 아니라 /opt/homebrew/bin 이 PATH 에 없다.
+# poppler 가 통째로 안 보이므로 알려진 위치를 덧붙인다.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin"
+
 [ -f "$ROOT/config.json" ] || { echo "설정이 없습니다. ./setup.sh <PDF 경로> 를 먼저 실행하세요." >&2; exit 1; }
 read -r PY PORT HOST <<< "$(python3 -c "
 import json;c=json.load(open('$ROOT/config.json'))
