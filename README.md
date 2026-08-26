@@ -63,7 +63,7 @@ cd book_reader
 | `host` | 누가 닿는가 |
 |---|---|
 | `127.0.0.1` (기본) | 이 컴퓨터에서만 |
-| `tailscale` | 내 tailnet 기기에서만 — 태블릿·노트북에서 볼 때 권장 |
+| `tailscale` | **이 컴퓨터 + 내 tailnet 기기** — 맥과 태블릿을 함께 쓸 때 권장 |
 | `0.0.0.0` | 같은 네트워크의 누구나 (권하지 않음) |
 
 태블릿 Termux 설정은 [docs/termux-setup.md](docs/termux-setup.md) 참조.

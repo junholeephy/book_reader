@@ -18,11 +18,15 @@ print(c.get('python','python3'), c.get('port',8765), c.get('host','127.0.0.1'))"
 PIDFILE="$ROOT/qa/server.pid"
 LOG="$ROOT/qa/server.log"
 
-addr() {
+# 접속 가능한 주소 전부. 로컬과 tailnet 을 동시에 열기 때문에 하나가 아니다.
+addrs() {
   "$PY" -c "
 import sys; sys.path.insert(0,'$ROOT/reader')
-import config; print(config.resolve_host('$HOST')[0])"
+import config
+for h in config.resolve_hosts('$HOST')[0]:
+    print('localhost' if h == '127.0.0.1' else h)"
 }
+addr() { addrs | head -1; }
 running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 
 case "${1:-start}" in
@@ -43,14 +47,14 @@ case "${1:-start}" in
       nohup "$PY" -u "$ROOT/reader/server.py" >> "$LOG" 2>&1 &
       echo $! > "$PIDFILE"
       for _ in $(seq 1 40); do
-        curl -sf "http://$(addr):$PORT/api/state" >/dev/null 2>&1 && break
+        curl -sf "http://localhost:$PORT/api/state" >/dev/null 2>&1 && break
         sleep 0.25
       done
       running || { echo "기동 실패. 로그:" >&2; tail -20 "$LOG" >&2; rm -f "$PIDFILE"; exit 1; }
       echo "기동했습니다 (pid $(cat "$PIDFILE"))."
     fi
     echo
-    echo "    http://$(addr):$PORT"
+    addrs | while read -r a; do echo "    http://$a:$PORT"; done
     echo
     echo "  중지: ./reader/serve.sh stop   로그: ./reader/serve.sh log"
     ;;

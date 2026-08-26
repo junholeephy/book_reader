@@ -12,28 +12,8 @@
 import { readFileSync } from 'node:fs';
 const cfg = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
 const CHROME = process.env.CHROME || cfg.chrome;
-// 서버가 어디에 묶여 있든 따라간다. host: "tailscale" 이면 localhost 로는 닿지 않는다.
-import { execSync } from 'node:child_process';
-function boundHost() {
-  const h = cfg.host || '127.0.0.1';
-  if (h === '127.0.0.1' || h === 'localhost' || h === '0.0.0.0') return 'localhost';
-  if (h !== 'tailscale') return h;
-  for (const t of ['tailscale', '/usr/local/bin/tailscale', '/opt/homebrew/bin/tailscale',
-                   '/Applications/Tailscale.app/Contents/MacOS/Tailscale']) {
-    try {
-      const out = execSync(`${JSON.stringify(t)} ip -4`, { stdio: ['ignore','pipe','ignore'] }).toString();
-      const ip = out.split('\n').map(x => x.trim()).find(x => /^100\.\d+\.\d+\.\d+$/.test(x));
-      if (ip) return ip;
-    } catch { /* 다음 후보 */ }
-  }
-  try {
-    const out = execSync('/sbin/ifconfig', { stdio: ['ignore','pipe','ignore'] }).toString();
-    const m = out.match(/inet (100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+)/);
-    if (m) return m[1];
-  } catch { /* 포기 */ }
-  return 'localhost';
-}
-const URL_ = process.env.READER_URL || `http://${boundHost()}:${cfg.port || 8765}/`;
+// 로컬은 어떤 host 설정이든 항상 열려 있다 (0.0.0.0 포함).
+const URL_ = process.env.READER_URL || `http://localhost:${cfg.port || 8765}/`;
 const PORT = 9422;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

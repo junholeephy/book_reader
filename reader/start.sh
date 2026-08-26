@@ -35,20 +35,21 @@ fi
 SERVER_PID=$!
 trap 'kill $SERVER_PID 2>/dev/null || true' EXIT INT TERM
 for _ in $(seq 1 40); do
-  curl -sf "http://$BIND:$PORT/api/state" >/dev/null 2>&1 && break
+  curl -sf "http://localhost:$PORT/api/state" >/dev/null 2>&1 && break
   sleep 0.25
 done
 
 if [ "$HOST" != "127.0.0.1" ] && [ "$HOST" != "localhost" ]; then
-  # 이미 이 컴퓨터 밖에서 닿는 주소에 묶여 있다. 터널이 필요 없다.
+  # 로컬과 외부 주소를 동시에 연다. 터널이 필요 없다.
   cat <<MSG
 
-  ── 다른 기기에서 바로 열 수 있습니다 ─────────────────────
-      http://$BIND:$PORT
+  ── 접속 주소 ─────────────────────────────────────────────
+      http://localhost:$PORT      (이 컴퓨터)
+      http://$BIND:$PORT   (다른 기기)
   ──────────────────────────────────────────────────────────
 
 MSG
-  [ -z "${SSH_CONNECTION:-}" ] && open "http://$BIND:$PORT"
+  [ -z "${SSH_CONNECTION:-}" ] && open "http://localhost:$PORT"
 elif [ -n "${SSH_CONNECTION:-}" ]; then
   # SSH 로 들어와 있다. 여기서 open 을 부르면 브라우저가 '이 머신' 에서 열린다 —
   # 눈앞에 있는 화면이 아니므로 아무 소용이 없다. 대신 터널 방법을 안내한다.

@@ -330,6 +330,44 @@ class TestChapterSessions(unittest.TestCase):
         self.assertEqual(saved["chapter"], "6")
 
 
+class TestHostBinding(unittest.TestCase):
+    """이 도구는 이 컴퓨터에서도, 다른 기기에서도 쓴다.
+    tailscale 을 골라도 로컬 접속을 막으면 안 된다."""
+
+    def setUp(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import config
+        self.config = config
+
+    def test_default_is_local_only(self):
+        hosts, _ = self.config.resolve_hosts("127.0.0.1")
+        self.assertEqual(hosts, ["127.0.0.1"])
+
+    def test_tailscale_keeps_localhost(self):
+        """회귀 방지: 예전에는 tailnet 주소에만 묶여 맥에서 localhost 로 못 들어갔다."""
+        with mock.patch.object(self.config, "_tailscale_ip", return_value="100.85.159.32"):
+            hosts, note = self.config.resolve_hosts("tailscale")
+        self.assertIn("127.0.0.1", hosts)
+        self.assertIn("100.85.159.32", hosts)
+        self.assertIn("이 컴퓨터", note)
+
+    def test_tailscale_unavailable_still_starts_locally(self):
+        """Tailscale 이 꺼져 있다고 서버를 못 띄울 이유는 없다."""
+        with mock.patch.object(self.config, "_tailscale_ip", return_value=""):
+            hosts, note = self.config.resolve_hosts("tailscale")
+        self.assertEqual(hosts, ["127.0.0.1"])
+        self.assertIn("Tailscale", note)
+
+    def test_explicit_address_keeps_localhost(self):
+        hosts, _ = self.config.resolve_hosts("192.168.0.9")
+        self.assertEqual(hosts, ["127.0.0.1", "192.168.0.9"])
+
+    def test_wildcard_warns_and_does_not_duplicate(self):
+        hosts, note = self.config.resolve_hosts("0.0.0.0")
+        self.assertEqual(hosts, ["0.0.0.0"])
+        self.assertIn("인증이 없어", note)
+
+
 class TestDeleteAndBookScope(unittest.TestCase):
     """삭제(휴지통)와 책 전체 질문 (FR-14)."""
 

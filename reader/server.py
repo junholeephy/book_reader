@@ -34,7 +34,8 @@ STATIC = Path(__file__).resolve().parent
 CFG = config.load()
 PDF = Path(CFG["pdf"])
 TUTOR = Path(CFG["tutorDir"])
-HOST, HOST_NOTE = config.resolve_host(CFG.get("host", "127.0.0.1"))
+HOSTS, HOST_NOTE = config.resolve_hosts(CFG.get("host", "127.0.0.1"))
+HOST = HOSTS[-1]
 PORT = int(CFG["port"])
 DPI = int(CFG["dpi"])
 
@@ -682,13 +683,19 @@ def main() -> None:
     for d in (QA / "questions", QA / "answers", QA / "crops", CACHE):
         d.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=_worker_loop, daemon=True).start()
-    shown = "localhost" if HOST == "127.0.0.1" else HOST
-    print(f"book_reader  http://{shown}:{PORT}")
+    for h in HOSTS:
+        shown = "localhost" if h == "127.0.0.1" else h
+        print(f"book_reader  http://{shown}:{PORT}")
     print(f"  접근    : {HOST_NOTE}")
     print(f"  PDF    : {PDF.name}")
     print(f"  워커   : {TUTOR}")
     print(f"  세션   : {read_state()['sessionId']}")
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    # 주소마다 소켓을 하나씩 연다. 0.0.0.0 처럼 넓게 여는 대신
+    # 필요한 인터페이스에만 붙여 LAN 노출을 피한다.
+    servers = [ThreadingHTTPServer((h, PORT), Handler) for h in HOSTS]
+    for srv in servers[:-1]:
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    servers[-1].serve_forever()
 
 
 if __name__ == "__main__":

@@ -147,28 +147,43 @@ def detect_toc_pages(pdf: str, total: int) -> str:
 
 # ---------------------------------------------------------------- 바인딩 주소
 
-def resolve_host(host: str) -> tuple[str, str]:
-    """설정의 host 를 실제 바인딩 주소로 바꾸고, 누가 닿을 수 있는지 한 줄로 설명한다.
+def resolve_hosts(host: str) -> tuple[list[str], str]:
+    """설정의 host 를 **바인딩할 주소 목록**으로 바꾼다.
 
-    이 서버에는 인증이 없다. 그래서 '어디에 묶느냐' 가 곧 접근 제어다.
-      127.0.0.1  이 컴퓨터에서만                (기본값)
-      tailscale  내 tailnet 기기에서만          (Tailscale 이 만든 암호화 사설망)
-      0.0.0.0    같은 네트워크의 누구나          <- 권하지 않는다
+    이 도구는 이 컴퓨터에서도, 다른 기기에서도 쓴다.
+    그래서 tailscale 을 골라도 로컬 접속을 막지 않는다 — 둘 다 연다.
+
+      127.0.0.1  이 컴퓨터에서만                      (기본값)
+      tailscale  이 컴퓨터 + 내 tailnet 기기          <- 태블릿에서 볼 때
+      0.0.0.0    같은 네트워크의 누구나                <- 권하지 않는다
+      <주소>      이 컴퓨터 + 그 주소
+
+    이 서버에는 인증이 없다. '어디에 묶느냐' 가 곧 접근 제어다.
     """
+    if host in ("0.0.0.0", "::"):
+        return [host], ("!! 같은 네트워크의 누구나 접속 가능합니다. "
+                        "이 서버에는 인증이 없어 아무나 책을 열람하고 "
+                        "당신 계정으로 질문을 던질 수 있습니다")
+
+    if host in ("127.0.0.1", "localhost", ""):
+        return ["127.0.0.1"], "이 컴퓨터에서만 접속 가능"
+
     if host == "tailscale":
         ip = _tailscale_ip()
         if not ip:
-            raise SystemExit(
-                "Tailscale IP 를 찾지 못했습니다. Tailscale 이 실행 중인지 확인하거나\n"
-                "  config.json 의 host 를 127.0.0.1 로 되돌리십시오.")
-        return ip, f"tailnet 기기에서 접속 가능 ({ip})"
-    if host in ("0.0.0.0", "::"):
-        return host, ("!! 같은 네트워크의 누구나 접속 가능합니다. "
-                      "이 서버에는 인증이 없어 아무나 책을 열람하고 "
-                      "당신 계정으로 질문을 던질 수 있습니다")
-    if host in ("127.0.0.1", "localhost"):
-        return "127.0.0.1", "이 컴퓨터에서만 접속 가능"
-    return host, f"{host} 로만 접속 가능"
+            # Tailscale 이 꺼져 있다고 서버를 못 띄울 이유는 없다.
+            # 이 컴퓨터에서라도 읽을 수 있어야 한다.
+            return ["127.0.0.1"], ("이 컴퓨터에서만 접속 가능 "
+                                   "(Tailscale 주소를 찾지 못했습니다 — 앱이 연결되어 있는지 확인하십시오)")
+        return ["127.0.0.1", ip], f"이 컴퓨터 + tailnet 기기 ({ip})"
+
+    return ["127.0.0.1", host], f"이 컴퓨터 + {host}"
+
+
+def resolve_host(host: str) -> tuple[str, str]:
+    """이전 인터페이스. 대표 주소 하나만 돌려준다 (외부에서 볼 주소)."""
+    hosts, note = resolve_hosts(host)
+    return (hosts[-1], note)
 
 
 # Tailscale 은 CGNAT 대역(100.64.0.0/10)을 쓴다. 이 형태가 아니면 IP 가 아니다.
