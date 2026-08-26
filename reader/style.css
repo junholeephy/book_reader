@@ -302,3 +302,12 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 @media (prefers-reduced-motion: reduce) {
   .regionFlash { animation: none; opacity: .8; }
 }
+
+/* 서버 연결이 끊겼을 때 */
+#connBanner {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; font-size: 13px;
+  background: #f7e2d8; color: var(--warn); border-bottom: 1px solid #e8c9b8;
+}
+#connBanner[hidden] { display: none; }
+#connBanner button { margin-left: auto; padding: 3px 9px; font-size: 12px; }
