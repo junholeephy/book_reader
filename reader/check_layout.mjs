@@ -47,6 +47,11 @@ await send('Runtime.enable');
 await send('Page.navigate', { url: URL_ });
 await sleep(6000);   // 페이지 이미지 + 텍스트 레이어 + KaTeX 렌더 대기
 
+// 질문 관련 항목은 화면에 렌더된 것을 센다. 기본 렌즈('이 절')는 대부분을
+// 걸러내므로 '전체'로 넓혀야 실제로 있는 것과 보이는 것이 맞는다.
+await send('Runtime.evaluate', { expression: "lens = 'all'; renderThread();" });
+await sleep(600);
+
 const { result } = await send('Runtime.evaluate', {
   returnByValue: true,
   expression: `(() => {
