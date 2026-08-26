@@ -31,11 +31,25 @@ for h in config.resolve_hosts('$HOST')[0]:
 remote_addr() { addrs | grep -v '^localhost$' | head -1 || true; }
 addr() { a="$(remote_addr)"; [ -n "$a" ] && echo "$a" || echo localhost; }
 running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+# pid 파일이 없어도 이미 떠 있을 수 있다 (start.sh 로 띄웠거나 pid 파일이 지워진 경우).
+# 포트를 확인하는 것보다 실제로 응답하는지 보는 편이 확실하다.
+serving() { curl -sf --max-time 2 "http://localhost:$PORT/api/state" 2>/dev/null | grep -q lastBookPage; }
 
 case "${1:-start}" in
   stop)
-    running && { kill "$(cat "$PIDFILE")"; rm -f "$PIDFILE"; echo "중지했습니다."; } \
-            || echo "떠 있지 않습니다."
+    if running; then
+      kill "$(cat "$PIDFILE")"; rm -f "$PIDFILE"; echo "중지했습니다."
+    elif serving; then
+      # start.sh 로 띄운 경우 pid 파일이 없다. 포트를 잡고 있는 프로세스를 찾는다.
+      PIDS="$(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
+      if [ -n "$PIDS" ]; then
+        echo "$PIDS" | xargs kill && echo "중지했습니다 (다른 곳에서 띄운 서버)."
+      else
+        echo "떠 있는데 프로세스를 찾지 못했습니다." >&2
+      fi
+    else
+      echo "떠 있지 않습니다."
+    fi
     ;;
   url)                      # 스크립트에서 주소만 받아갈 때
     case "${2:-remote}" in
@@ -49,17 +63,27 @@ case "${1:-start}" in
   start)
     if running; then
       echo "이미 떠 있습니다 (pid $(cat "$PIDFILE"))."
+    elif serving; then
+      echo "이미 떠 있습니다 (다른 곳에서 띄운 서버 — pid 를 모릅니다)."
     else
       mkdir -p "$ROOT/qa"
       # -u 가 없으면 파일로 리다이렉트할 때 stdout 이 블록 버퍼링되어
       # 로그가 8KB 찰 때까지 비어 있다. booklog 가 아무것도 못 보여준다.
       nohup "$PY" -u "$ROOT/reader/server.py" >> "$LOG" 2>&1 &
       echo $! > "$PIDFILE"
+      # 프로세스가 살아 있는 것만으로는 부족하다. 포트를 못 잡고 곧 죽는 중일 수도 있다.
+      # 실제로 응답할 때까지 기다린다.
       for _ in $(seq 1 40); do
-        curl -sf "http://localhost:$PORT/api/state" >/dev/null 2>&1 && break
+        serving && break
         sleep 0.25
       done
-      running || { echo "기동 실패. 로그:" >&2; tail -20 "$LOG" >&2; rm -f "$PIDFILE"; exit 1; }
+      if ! serving; then
+        echo "기동 실패. 로그:" >&2
+        tail -20 "$LOG" >&2
+        kill "$(cat "$PIDFILE")" 2>/dev/null || true
+        rm -f "$PIDFILE"
+        exit 1
+      fi
       echo "기동했습니다 (pid $(cat "$PIDFILE"))."
     fi
     echo

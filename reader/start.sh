@@ -25,15 +25,26 @@ elif [ "$HOST" != "127.0.0.1" ] && [ "$HOST" != "localhost" ]; then
 fi
 [ "$BIND" = "0.0.0.0" ] && BIND="127.0.0.1"
 
+# 포트가 이미 쓰이고 있으면, 그게 우리 서버인지부터 확인한다.
+# serve.sh 로 띄워두었거나 다른 기기에서 먼저 켰을 수 있다 — 그러면 그냥 붙으면 된다.
+ATTACHED=""
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "포트 $PORT 가 이미 사용 중입니다."
-  echo "  이미 떠 있다면: open http://localhost:$PORT"
-  exit 1
+  if curl -sf "http://localhost:$PORT/api/state" 2>/dev/null | grep -q lastBookPage; then
+    echo "이미 떠 있는 서버에 연결합니다."
+    ATTACHED=1
+  else
+    echo "포트 $PORT 를 다른 프로그램이 쓰고 있습니다." >&2
+    echo "  확인: lsof -nP -iTCP:$PORT -sTCP:LISTEN" >&2
+    exit 1
+  fi
 fi
 
-"$PY" "$ROOT/reader/server.py" &
-SERVER_PID=$!
-trap 'kill $SERVER_PID 2>/dev/null || true' EXIT INT TERM
+if [ -z "$ATTACHED" ]; then
+  "$PY" "$ROOT/reader/server.py" &
+  SERVER_PID=$!
+  # 우리가 띄운 것만 정리한다. 붙은 경우에 끄면 남의 세션을 끊는다.
+  trap 'kill $SERVER_PID 2>/dev/null || true' EXIT INT TERM
+fi
 for _ in $(seq 1 40); do
   curl -sf "http://localhost:$PORT/api/state" >/dev/null 2>&1 && break
   sleep 0.25
@@ -87,4 +98,9 @@ else
   open "http://localhost:$PORT"
 fi
 
-wait $SERVER_PID
+if [ -n "$ATTACHED" ]; then
+  echo "  (이 서버는 다른 곳에서 띄운 것이라 Ctrl+C 로 꺼지지 않습니다)"
+  echo "  중지하려면: ./reader/serve.sh stop"
+else
+  wait $SERVER_PID
+fi
