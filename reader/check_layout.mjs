@@ -91,6 +91,7 @@ const { result } = await send('Runtime.evaluate', {
       pageBoxes: pages.querySelectorAll('.pageBox').length,
       appPosition: getComputedStyle(document.getElementById('app')).position,
       overscroll: getComputedStyle(document.body).overscrollBehaviorY,
+      questionPageLinks: document.querySelectorAll('#thread .meta .pageRef[data-page]').length,
       imagesInDom: pages.querySelectorAll('img').length,
       textBelowImage: Math.round(maxBottom - ir.bottom),
       textRightOfImage: Math.round(maxRight - ir.right),
@@ -205,6 +206,8 @@ const checks = [
   ['터치 드래그로 영역이 잡힌다 (FR-3)', rp.drawn, rp.value || '(없음)'],
   ['모바일에서 문서가 밀리지 않는다', m.appPosition === 'fixed' && m.overscroll === 'none',
    `#app=${m.appPosition}, overscroll-y=${m.overscroll}`],
+  ['질문에서 물었던 페이지로 갈 수 있다', m.questionPageLinks > 0,
+   `${m.questionPageLinks} 개 링크`],
 ];
 
 let failed = 0;
