@@ -38,7 +38,9 @@ case "${1:-start}" in
       echo "이미 떠 있습니다 (pid $(cat "$PIDFILE"))."
     else
       mkdir -p "$ROOT/qa"
-      nohup "$PY" "$ROOT/reader/server.py" >> "$LOG" 2>&1 &
+      # -u 가 없으면 파일로 리다이렉트할 때 stdout 이 블록 버퍼링되어
+      # 로그가 8KB 찰 때까지 비어 있다. booklog 가 아무것도 못 보여준다.
+      nohup "$PY" -u "$ROOT/reader/server.py" >> "$LOG" 2>&1 &
       echo $! > "$PIDFILE"
       for _ in $(seq 1 40); do
         curl -sf "http://$(addr):$PORT/api/state" >/dev/null 2>&1 && break
