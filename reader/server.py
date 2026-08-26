@@ -518,9 +518,12 @@ def submit_question(req: dict) -> str:
     q["chapter"] = BOOK_SCOPE if q["scope"] == "book" else chapter_key(book_page)
     region = req.get("region")
     if region:
-        path = crop_region(book_page, int(region["x"]), int(region["y"]),
-                           int(region["w"]), int(region["h"]), qid)
+        box = {k: int(region[k]) for k in ("x", "y", "w", "h")}
+        path = crop_region(book_page, box["x"], box["y"], box["w"], box["h"], qid)
         q["cropPath"] = str(path)
+        # 좌표도 남긴다. 나중에 이 질문으로 돌아올 때 페이지가 아니라
+        # 지목했던 그 자리까지 데려가기 위해서다. 단위는 150dpi 렌더 픽셀.
+        q["region"] = box
     (QA / "questions" / f"{qid}.json").write_text(
         json.dumps(q, ensure_ascii=False, indent=2) + "\n")
     enqueue(qid, "summary")

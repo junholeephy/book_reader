@@ -377,6 +377,28 @@ class TestDeleteAndBookScope(unittest.TestCase):
             with mock.patch.object(server, "QA", qa):
                 self.assertEqual(server.delete_question("nope")["movedTo"], [])
 
+    def test_region_coordinates_are_stored(self):
+        """좌표를 남겨야 나중에 지목했던 자리로 돌아갈 수 있다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            with mock.patch.object(server, "QA", qa), \
+                 mock.patch.object(server, "enqueue"), \
+                 mock.patch.object(server, "crop_region",
+                                   return_value=Path(tmp, "crops", "x.png")):
+                qid = server.submit_question({
+                    "bookPage": 252, "question": "?",
+                    "region": {"x": 250, "y": 1050, "w": 800, "h": 130}})
+            q = json.loads((qa / "questions" / f"{qid}.json").read_text())
+        self.assertEqual(q["region"], {"x": 250, "y": 1050, "w": 800, "h": 130})
+
+    def test_no_region_key_when_not_selected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            with mock.patch.object(server, "QA", qa), mock.patch.object(server, "enqueue"):
+                qid = server.submit_question({"bookPage": 252, "question": "?"})
+            q = json.loads((qa / "questions" / f"{qid}.json").read_text())
+        self.assertIsNone(q.get("region"))
+
     def test_book_scope_gets_its_own_chapter_key(self):
         """책 전체 질문이 서 있던 장에 묶이면 안 된다."""
         with tempfile.TemporaryDirectory() as tmp:

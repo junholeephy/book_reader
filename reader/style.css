@@ -287,3 +287,18 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 
 .badge.book { background: #e4e9f5; color: #3a4b7a; }
 #scopeBtn { margin-right: 8px; }
+
+/* 지목했던 영역으로 돌아왔을 때 잠깐 보여주는 표시 */
+.regionFlash {
+  position: absolute; pointer-events: none; z-index: 2;
+  border: 2px solid var(--accent); border-radius: 3px;
+  background: rgba(47,111,78,.16);
+  animation: regionFade 2.6s ease-out forwards;
+}
+@keyframes regionFade {
+  0%, 55% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .regionFlash { animation: none; opacity: .8; }
+}
