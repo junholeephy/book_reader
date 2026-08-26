@@ -19,6 +19,7 @@ DEFAULTS = {
     "pageOffset": "auto",      # PDF 페이지 = 책 페이지 + offset. "auto" 면 검출한다
     "tocPages": "auto",        # 목차가 실린 PDF 페이지 범위. "6-17" 형태 또는 "auto"
     "python": "python3",       # 서버를 돌릴 인터프리터
+    "host": "127.0.0.1",       # 누가 접속할 수 있는가. 아래 resolve_host 참조
     "port": 8765,
     "dpi": 150,
     "tutorDir": "~/.book-reader-tutor",
@@ -107,3 +108,44 @@ def detect_toc_pages(pdf: str, total: int) -> str:
     if not hits:
         return ""
     return f"{hits[0]}-{hits[-1]}"
+
+
+# ---------------------------------------------------------------- 바인딩 주소
+
+def resolve_host(host: str) -> tuple[str, str]:
+    """설정의 host 를 실제 바인딩 주소로 바꾸고, 누가 닿을 수 있는지 한 줄로 설명한다.
+
+    이 서버에는 인증이 없다. 그래서 '어디에 묶느냐' 가 곧 접근 제어다.
+      127.0.0.1  이 컴퓨터에서만                (기본값)
+      tailscale  내 tailnet 기기에서만          (Tailscale 이 만든 암호화 사설망)
+      0.0.0.0    같은 네트워크의 누구나          <- 권하지 않는다
+    """
+    if host == "tailscale":
+        ip = _tailscale_ip()
+        if not ip:
+            raise SystemExit(
+                "Tailscale IP 를 찾지 못했습니다. Tailscale 이 실행 중인지 확인하거나\n"
+                "  config.json 의 host 를 127.0.0.1 로 되돌리십시오.")
+        return ip, f"tailnet 기기에서 접속 가능 ({ip})"
+    if host in ("0.0.0.0", "::"):
+        return host, ("!! 같은 네트워크의 누구나 접속 가능합니다. "
+                      "이 서버에는 인증이 없어 아무나 책을 열람하고 "
+                      "당신 계정으로 질문을 던질 수 있습니다")
+    if host in ("127.0.0.1", "localhost"):
+        return "127.0.0.1", "이 컴퓨터에서만 접속 가능"
+    return host, f"{host} 로만 접속 가능"
+
+
+def _tailscale_ip() -> str:
+    """이 머신의 tailnet IPv4 주소 (100.x.y.z)."""
+    for exe in ("tailscale",
+                "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+                "/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale"):
+        try:
+            out = subprocess.run([exe, "ip", "-4"], capture_output=True, text=True,
+                                 timeout=10, stdin=subprocess.DEVNULL).stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+        if out:
+            return out.splitlines()[0].strip()
+    return ""

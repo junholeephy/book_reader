@@ -3,6 +3,7 @@
   "pageOffset": "auto",
   "tocPages": "auto",
   "python": "python3",
+  "host": "127.0.0.1",
   "port": 8765,
   "dpi": 150,
   "tutorDir": "~/.book-reader-tutor",

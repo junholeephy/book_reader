@@ -35,6 +35,7 @@ STATIC = Path(__file__).resolve().parent
 CFG = config.load()
 PDF = Path(CFG["pdf"])
 TUTOR = Path(CFG["tutorDir"])
+HOST, HOST_NOTE = config.resolve_host(CFG.get("host", "127.0.0.1"))
 PORT = int(CFG["port"])
 DPI = int(CFG["dpi"])
 
@@ -645,11 +646,13 @@ def main() -> None:
     for d in (QA / "questions", QA / "answers", QA / "crops", CACHE):
         d.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=_worker_loop, daemon=True).start()
-    print(f"book_reader  http://localhost:{PORT}")
+    shown = "localhost" if HOST == "127.0.0.1" else HOST
+    print(f"book_reader  http://{shown}:{PORT}")
+    print(f"  접근    : {HOST_NOTE}")
     print(f"  PDF    : {PDF.name}")
     print(f"  워커   : {TUTOR}")
     print(f"  세션   : {read_state()['sessionId']}")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":

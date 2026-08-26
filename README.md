@@ -55,17 +55,19 @@ cd book_reader
 
 ---
 
-### 원격에서 보기
+### 다른 기기에서 보기
 
-SSH 로 접속해 작업하면서 눈앞의 브라우저로 보려면 터널을 쓰십시오.
+이 서버에는 인증이 없습니다. `config.json` 의 `host` 가 곧 접근 제어입니다.
 
-```bash
-ssh -N -L 8765:localhost:8765 <user>@<host>    # 노트북에서 별도 터미널
-```
+| `host` | 누가 닿는가 |
+|---|---|
+| `127.0.0.1` (기본) | 이 컴퓨터에서만 |
+| `tailscale` | 내 tailnet 기기에서만 — 태블릿·노트북에서 볼 때 권장 |
+| `0.0.0.0` | 같은 네트워크의 누구나 (권하지 않음) |
 
-서버는 `127.0.0.1` 에만 묶여 있어 터널 없이는 밖에서 닿지 않습니다 — 의도된 것입니다.
-`start.sh` 가 SSH 세션을 감지하면 접속 정보에 맞춘 명령을 출력합니다.
-자세한 내용은 [reader/README.md](reader/README.md#원격에서-보기-ssh).
+Tailscale 을 안 쓰면 SSH 터널도 됩니다: `ssh -N -L 8765:localhost:8765 <user>@<host>`.
+`start.sh` 는 SSH 세션을 감지하면 접속 정보에 맞춘 터널 명령을 출력합니다.
+자세한 내용은 [reader/README.md](reader/README.md#다른-기기에서-보기).
 
 ---
 
