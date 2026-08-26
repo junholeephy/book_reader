@@ -33,7 +33,7 @@ cp /tmp/package/dist/fonts/*.woff2 reader/vendor/katex/fonts/
 PY=/Users/junho/venv_folders/qc_env/bin/python
 $PY -m py_compile reader/server.py reader/test_server.py   # 문법
 $PY -c "import sys; sys.path.insert(0,'reader'); import server"   # 임포트
-bash -n reader/start.sh ~/.qc-book-tutor/ask.sh            # 셸
+bash -n reader/serve.sh ~/.book-reader-tutor/ask.sh        # 셸
 node --check reader/app.js                                 # JS (node 있을 때)
 ```
 

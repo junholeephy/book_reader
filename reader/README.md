@@ -8,7 +8,7 @@ PDF 교재를 읽으면서 막히는 부분을 바로 물어보는 로컬 도구
 
 ```bash
 ./setup.sh <PDF 경로>     # 최초 1회
-./reader/start.sh
+./reader/serve.sh
 ```
 
 서버가 뜨고 브라우저가 자동으로 열립니다. 종료는 터미널에서 `Ctrl+C`.
@@ -69,20 +69,17 @@ Termux 까지 항상 반영되지는 않습니다. 짧은 이름이 안 풀리�
 읽기를 마쳤을 때 맥에 프로세스를 남기지 않으려고 쓰는 것이고,
 계속 쓸 거면 그냥 두어도 됩니다.
 
-**두 스크립트를 섞어 써도 됩니다.** `start.sh` 는 이미 떠 있는 서버를 발견하면
-새로 띄우지 않고 붙습니다(그리고 `Ctrl+C` 로 그 서버를 끄지 않습니다).
-`serve.sh` 도 `start.sh` 로 띄운 서버를 알아보고, `stop` 으로 끌 수 있습니다.
-
-**그래도 `serve.sh` 를 권합니다.** `start.sh` 는 포그라운드라
-SSH 가 끊기면 서버도 같이 죽습니다. `serve.sh` 는 `nohup` 으로 떼어내
-연결이 끊겨도 살아남습니다. 태블릿에서는 세션이 자주 끊깁니다.
+**서버는 `serve.sh` 하나로 관리합니다.** 기본이 백그라운드라
+SSH 가 끊겨도 살아남습니다 — 태블릿에서는 세션이 자주 끊깁니다.
+맥에서 실행하면 브라우저도 함께 열립니다.
 
 ```bash
 ./reader/serve.sh              # 기동 (이미 떠 있으면 주소만 알려준다)
 ./reader/serve.sh stop         # 중지
-./reader/serve.sh log          # 로그
+./reader/serve.sh log [N]      # 로그
 ./reader/serve.sh url          # 다른 기기에서 쓸 주소만 (스크립트용)
 ./reader/serve.sh url local    # 이 컴퓨터에서 쓸 주소만
+./reader/serve.sh fg           # 포그라운드 (디버깅용, Ctrl+C 로 종료)
 ```
 
 > 서버는 로컬과 tailnet 주소를 **동시에** 엽니다.
@@ -105,7 +102,7 @@ SSH 가 끊기면 서버도 같이 죽습니다. `serve.sh` 는 `nohup` 으로 �
 ```
 
 ```bash
-./reader/start.sh
+./reader/serve.sh
 ```
 
 ```
@@ -152,7 +149,7 @@ Host bookreader
 
 이후로는 `ssh bookreader` 만으로 터널이 함께 열립니다.
 
-`start.sh` 는 SSH 세션을 감지하면 브라우저를 열지 않고(원격 머신에서 열려봐야 소용없으므로)
+`serve.sh` 는 SSH 세션을 감지하면 브라우저를 열지 않고(원격 머신에서 열려봐야 소용없으므로)
 위 명령을 접속 정보에 맞춰 출력합니다.
 
 ### 선결 조건
@@ -282,7 +279,7 @@ cd qa/trash && for f in *; do d="${f%%-*}"; mv "$f" "../$d/${f#*-}"; done
 reader/
   index.html  app.js  style.css     뷰어 (바닐라 JS)
   server.py                         미니 서버 (Python 표준 라이브러리)
-  start.sh                          기동
+  serve.sh                          기동·중지·로그
   test_server.py                    단위 테스트
   vendor/katex/                     수식 렌더 (오프라인)
 refs/                               검색 자산 (nc.sh, book.txt, toc-raw.txt)

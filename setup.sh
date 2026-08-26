@@ -150,4 +150,4 @@ mkdir -p "$ROOT/qa/questions" "$ROOT/qa/answers" "$ROOT/qa/crops" "$ROOT/cache/p
 [ -f "$ROOT/qa/history.md" ] || printf '# 학습 노트\n\n' > "$ROOT/qa/history.md"
 
 echo
-echo "설치 완료.  ./reader/start.sh 로 실행하십시오."
+echo "설치 완료.  ./reader/serve.sh 로 실행하십시오."

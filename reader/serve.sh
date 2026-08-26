@@ -1,12 +1,14 @@
 #!/bin/bash
-# 서버를 백그라운드로 띄운다. SSH 연결이 끊겨도 살아남는다.
+# 책 서버를 켜고 끄는 유일한 진입점.
 #
-#   ./reader/serve.sh          기동 (이미 떠 있으면 주소만 알려준다)
-#   ./reader/serve.sh stop     중지
-#   ./reader/serve.sh log      로그 보기
+#   ./reader/serve.sh              기동 (이미 떠 있으면 주소만 알려준다)
+#   ./reader/serve.sh stop         중지
+#   ./reader/serve.sh log [N]      로그 보기
+#   ./reader/serve.sh url [local|remote]   주소만 (스크립트용)
+#   ./reader/serve.sh fg           포그라운드로 (디버깅용, Ctrl+C 로 종료)
 #
-# 태블릿 Termux 처럼 세션이 자주 끊기는 환경을 위한 것이다.
-# start.sh 는 포그라운드라 SSH 가 끊기면 서버도 같이 죽는다.
+# 기본은 백그라운드다. 태블릿 Termux 처럼 세션이 자주 끊기는 환경에서
+# 포그라운드로 띄우면 SSH 가 끊길 때 서버도 같이 죽는다.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin"
@@ -31,7 +33,7 @@ for h in config.resolve_hosts('$HOST')[0]:
 remote_addr() { addrs | grep -v '^localhost$' | head -1 || true; }
 addr() { a="$(remote_addr)"; [ -n "$a" ] && echo "$a" || echo localhost; }
 running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
-# pid 파일이 없어도 이미 떠 있을 수 있다 (start.sh 로 띄웠거나 pid 파일이 지워진 경우).
+# pid 파일이 없어도 이미 떠 있을 수 있다 (fg 로 띄웠거나 pid 파일이 지워진 경우).
 # 포트를 확인하는 것보다 실제로 응답하는지 보는 편이 확실하다.
 serving() { curl -sf --max-time 2 "http://localhost:$PORT/api/state" 2>/dev/null | grep -q lastBookPage; }
 
@@ -40,7 +42,7 @@ case "${1:-start}" in
     if running; then
       kill "$(cat "$PIDFILE")"; rm -f "$PIDFILE"; echo "중지했습니다."
     elif serving; then
-      # start.sh 로 띄운 경우 pid 파일이 없다. 포트를 잡고 있는 프로세스를 찾는다.
+      # fg 나 직접 실행으로 띄운 경우 pid 파일이 없다. 포트를 잡고 있는 프로세스를 찾는다.
       PIDS="$(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
       if [ -n "$PIDS" ]; then
         echo "$PIDS" | xargs kill && echo "중지했습니다 (다른 곳에서 띄운 서버)."
@@ -59,6 +61,13 @@ case "${1:-start}" in
     ;;
   log)
     tail -n "${2:-40}" "$LOG" 2>/dev/null || echo "로그가 없습니다."
+    ;;
+  fg)                       # 포그라운드. 로그가 터미널로 흐른다
+    if running || serving; then
+      echo "이미 떠 있습니다. ./reader/serve.sh stop 으로 먼저 끄십시오." >&2
+      exit 1
+    fi
+    exec "$PY" -u "$ROOT/reader/server.py"
     ;;
   start)
     if running; then
@@ -97,6 +106,23 @@ case "${1:-start}" in
     fi
     echo
     echo "  중지: ./reader/serve.sh stop   로그: ./reader/serve.sh log"
+
+    if [ -z "${SSH_CONNECTION:-}" ] && [ "$HOST" = "127.0.0.1" ] && command -v open >/dev/null; then
+      open "http://localhost:$PORT"        # 이 컴퓨터 앞에 앉아 있다
+    elif [ -n "${SSH_CONNECTION:-}" ] && [ "$HOST" = "127.0.0.1" ]; then
+      # 원격에서 불렀는데 로컬에만 묶여 있다. 터널이 필요하다.
+      SERVER_IP="$(echo "$SSH_CONNECTION" | awk '{print $3}')"
+      cat <<MSG
+
+  이 서버는 localhost 에만 열려 있습니다. 보고 계신 기기에서 열려면
+  터미널을 하나 더 열고 터널을 만드십시오:
+
+      ssh -N -L $PORT:localhost:$PORT ${USER}@${SERVER_IP}
+
+  그다음 http://localhost:$PORT
+  (config.json 의 host 를 "tailscale" 로 두면 터널 없이 바로 열립니다)
+MSG
+    fi
     ;;
-  *) echo "usage: serve.sh [start|stop|log|url [local|remote]]" >&2; exit 2 ;;
+  *) echo "usage: serve.sh [start|stop|fg|log [N]|url [local|remote]]" >&2; exit 2 ;;
 esac

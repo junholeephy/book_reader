@@ -29,8 +29,7 @@ Claude Code가 **책 원문과 (필요할 때) 웹을 근거로** 답합니다.
 git clone https://github.com/junholeephy/book_reader.git
 cd book_reader
 ./setup.sh /path/to/your/book.pdf --python /path/to/venv/bin/python
-./reader/start.sh          # 포그라운드
-./reader/serve.sh          # 백그라운드 (SSH 가 끊겨도 유지)
+./reader/serve.sh
 ```
 
 `setup.sh` 가 하는 일:
@@ -69,7 +68,7 @@ cd book_reader
 태블릿 Termux 설정은 [docs/termux-setup.md](docs/termux-setup.md) 참조.
 
 Tailscale 을 안 쓰면 SSH 터널도 됩니다: `ssh -N -L 8765:localhost:8765 <user>@<host>`.
-`start.sh` 는 SSH 세션을 감지하면 접속 정보에 맞춘 터널 명령을 출력합니다.
+`serve.sh` 는 SSH 세션을 감지하면 접속 정보에 맞춘 터널 명령을 출력합니다.
 자세한 내용은 [reader/README.md](reader/README.md#다른-기기에서-보기).
 
 ---
@@ -81,7 +80,7 @@ book_reader/
 ├── reader/                 리딩 어시스턴트
 │   ├── index.html app.js style.css     뷰어 (바닐라 JS)
 │   ├── server.py  config.py            미니 서버 · 설정/자동 검출
-│   ├── start.sh                        기동
+│   ├── serve.sh                        기동·중지·로그
 │   ├── toc.py                          목차 색인 (검색·네비·앵커링 공용)
 │   ├── test_server.py test_toc.py      단위 테스트
 │   ├── check_layout.mjs                브라우저 레이아웃 점검
