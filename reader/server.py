@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""N&C 리딩 어시스턴트 미니 서버.
+"""book_reader 미니 서버.
 
 브라우저와 poppler/워커 사이의 유일한 중개자.
 표준 라이브러리만 사용한다 (NFR-1).
@@ -645,7 +645,7 @@ def main() -> None:
     for d in (QA / "questions", QA / "answers", QA / "crops", CACHE):
         d.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=_worker_loop, daemon=True).start()
-    print(f"N&C 리딩 어시스턴트  http://localhost:{PORT}")
+    print(f"book_reader  http://localhost:{PORT}")
     print(f"  PDF    : {PDF.name}")
     print(f"  워커   : {TUTOR}")
     print(f"  세션   : {read_state()['sessionId']}")

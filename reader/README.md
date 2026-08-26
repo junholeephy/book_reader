@@ -1,7 +1,6 @@
-# N&C 리딩 어시스턴트
+# book_reader — 뷰어
 
-Nielsen & Chuang *Quantum Computation and Quantum Information* 을 읽으면서
-막히는 부분을 바로 물어보는 로컬 도구.
+PDF 교재를 읽으면서 막히는 부분을 바로 물어보는 로컬 도구.
 
 왼쪽에 책 원본이 뜨고, 오른쪽에서 질문하면 Claude Code가 책 원문과 (필요할 때) 웹을 뒤져 답합니다.
 
@@ -76,7 +75,7 @@ Claude가 원본 페이지 이미지를 직접 읽어 판독합니다.
 ```
 
 **절이 기본값인 이유**: 한 개념이 여러 쪽에 걸치기 때문입니다.
-Grover iteration은 p.250~255에 걸쳐 있어서, p.252에서 물어본 질문이
+한 개념이 예컨대 p.250~255에 걸쳐 있으면, p.252에서 물어본 질문이
 p.251로 돌아왔을 때 안 보이면 곤란합니다.
 페이지 경계는 조판의 산물이고 절 경계는 의미의 경계입니다.
 
@@ -112,16 +111,16 @@ reader/
 refs/                               검색 자산 (nc.sh, book.txt, toc-raw.txt)
 qa/  cache/                         런타임 데이터
 
-~/.qc-book-tutor/                   답변 워커
+~/.book-reader-tutor/                   답변 워커
   CLAUDE.md                         "책 튜터" 지침
   ask.sh                            claude -p 래퍼
 ```
 
 ### 워커가 프로젝트 밖에 있는 이유
 
-`~/.qc-book-tutor/` 는 일부러 이 프로젝트 트리 **바깥**에 둡니다.
+`~/.book-reader-tutor/` 는 일부러 이 프로젝트 트리 **바깥**에 둡니다.
 Claude Code는 `CLAUDE.md` 를 상위 디렉터리로 거슬러 올라가며 찾기 때문에,
-워커를 `qc_book/` 안에 두면 AI-DLC 개발 규칙 전체가 매 질문마다 로드됩니다.
+워커를 저장소 안에 두면 개발 규칙 전체가 매 질문마다 로드됩니다.
 책에 대한 질문에 개발 워크플로 규칙은 필요 없습니다.
 실측으로 질문당 약 9,300 토큰 차이가 났습니다 (트리 안 22,759 / 밖 13,410).
 
@@ -143,7 +142,7 @@ lsof -nP -iTCP:8765 -sTCP:LISTEN     # 무엇이 쓰는지 확인
 답변 카드의 **↻ 다시 시도**. 질문은 지워지지 않으므로 유실되지 않습니다.
 반복되면 워커를 직접 돌려 stderr를 확인하세요:
 ```bash
-~/.qc-book-tutor/ask.sh <question-id> summary
+~/.book-reader-tutor/ask.sh <question-id> summary
 ```
 
 **답변이 점점 느려진다**

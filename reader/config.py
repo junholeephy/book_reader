@@ -21,7 +21,7 @@ DEFAULTS = {
     "python": "python3",       # 서버를 돌릴 인터프리터
     "port": 8765,
     "dpi": 150,
-    "tutorDir": "~/.qc-book-tutor",
+    "tutorDir": "~/.book-reader-tutor",
     "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 }
 
