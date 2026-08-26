@@ -32,12 +32,33 @@ Termux 에서 SSH 로 붙어 서버를 띄우고, 크롬으로 봅니다.
 
 ```bash
 # 태블릿 Termux 의 ~/.bashrc
-alias mac='ssh junho@lees-mac-mini'
-alias book='ssh junho@lees-mac-mini "cd ~/coding_work/qc_book && ./reader/serve.sh"'
-alias bookstop='ssh junho@lees-mac-mini "~/coding_work/qc_book/reader/serve.sh stop"'
+MAC=100.85.159.32          # Tailscale IP — 어느 네트워크에서든 같다
+
+alias mac="ssh junho@$MAC"
+alias book="ssh junho@$MAC 'cd ~/coding_work/book_reader && ./reader/serve.sh'"
+alias bookstop="ssh junho@$MAC '~/coding_work/book_reader/reader/serve.sh stop'"
 ```
 
 `book` 을 치면 주소가 나옵니다. 크롬에서 그 주소를 열면 됩니다.
+
+**주소는 Tailscale IP(`100.x.y.z`)를 쓰는 편이 안전합니다.** Tailscale 은 오버레이 망이라
+같은 와이파이가 아니어도, LTE 로도, 다른 나라에서도 이 주소로 닿습니다.
+
+MagicDNS 이름도 씁니다 — 다만 안정성에 차이가 있습니다.
+
+| 주소 | 언제 되는가 |
+|---|---|
+| `100.85.159.32` | **항상.** DNS 설정과 무관 |
+| `lees-mac-mini.tailea7c23.ts.net` | MagicDNS 가 켜져 있으면 |
+| `lees-mac-mini` | 위 + 클라이언트에 search domain 이 잡혀 있으면 |
+
+Termux 는 안드로이드 시스템 리졸버를 타는데 Tailscale 앱의 DNS 설정이
+Termux 까지 항상 반영되지는 않습니다. 짧은 이름이 안 풀리면 IP 를 쓰십시오.
+
+`bookstop` 은 **맥에서 도는 서버를 끕니다.** SSH 연결을 끊는 것이 아닙니다
+(각 alias 는 명령 하나만 실행하고 알아서 연결을 닫습니다).
+읽기를 마쳤을 때 맥에 프로세스를 남기지 않으려고 쓰는 것이고,
+계속 쓸 거면 그냥 두어도 됩니다.
 
 **`start.sh` 가 아니라 `serve.sh` 를 쓰십시오.** `start.sh` 는 포그라운드라
 SSH 가 끊기면 서버도 같이 죽습니다. `serve.sh` 는 `nohup` 으로 떼어내

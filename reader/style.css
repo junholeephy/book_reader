@@ -51,7 +51,7 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 #pageScroll { flex: 1; min-width: 0; overflow: auto; padding: 16px; position: relative;
              user-select: none; -webkit-user-select: none; }
 
-#pages { width: 100%; max-width: 900px; }
+#pages { width: 100%; max-width: 900px; position: relative; }
 
 .pageBox {
   position: relative; margin: 0 auto 18px; background: #fff;
@@ -76,7 +76,11 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 
 
 /* 영역 선택 모드 */
-#regionOverlay { position: absolute; inset: 0; cursor: crosshair; background: rgba(0,0,0,.04); }
+#regionOverlay {
+  position: absolute; inset: 0; z-index: 3;
+  cursor: crosshair; background: rgba(0,0,0,.04);
+  touch-action: none;          /* 터치 드래그를 스크롤로 뺏기지 않게 */
+}
 #regionBox {
   position: absolute; display: none;
   border: 2px solid var(--accent); background: rgba(47,111,78,.14);

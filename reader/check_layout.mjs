@@ -12,7 +12,28 @@
 import { readFileSync } from 'node:fs';
 const cfg = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
 const CHROME = process.env.CHROME || cfg.chrome;
-const URL_ = process.env.READER_URL || `http://localhost:${cfg.port || 8765}/`;
+// 서버가 어디에 묶여 있든 따라간다. host: "tailscale" 이면 localhost 로는 닿지 않는다.
+import { execSync } from 'node:child_process';
+function boundHost() {
+  const h = cfg.host || '127.0.0.1';
+  if (h === '127.0.0.1' || h === 'localhost' || h === '0.0.0.0') return 'localhost';
+  if (h !== 'tailscale') return h;
+  for (const t of ['tailscale', '/usr/local/bin/tailscale', '/opt/homebrew/bin/tailscale',
+                   '/Applications/Tailscale.app/Contents/MacOS/Tailscale']) {
+    try {
+      const out = execSync(`${JSON.stringify(t)} ip -4`, { stdio: ['ignore','pipe','ignore'] }).toString();
+      const ip = out.split('\n').map(x => x.trim()).find(x => /^100\.\d+\.\d+\.\d+$/.test(x));
+      if (ip) return ip;
+    } catch { /* 다음 후보 */ }
+  }
+  try {
+    const out = execSync('/sbin/ifconfig', { stdio: ['ignore','pipe','ignore'] }).toString();
+    const m = out.match(/inet (100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+)/);
+    if (m) return m[1];
+  } catch { /* 포기 */ }
+  return 'localhost';
+}
+const URL_ = process.env.READER_URL || `http://${boundHost()}:${cfg.port || 8765}/`;
 const PORT = 9422;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -67,7 +88,7 @@ const { result } = await send('Runtime.evaluate', {
       bodyScrollsBy: document.body.scrollHeight - document.body.clientHeight,
       pageScrollsHorizontally: scroll.scrollWidth - scroll.clientWidth,
       textLayerSpans: box ? box.querySelectorAll('.tl span').length : 0,
-      pageBoxes: pages.children.length,
+      pageBoxes: pages.querySelectorAll('.pageBox').length,
       imagesInDom: pages.querySelectorAll('img').length,
       textBelowImage: Math.round(maxBottom - ir.bottom),
       textRightOfImage: Math.round(maxRight - ir.right),
@@ -118,10 +139,47 @@ const navProbe = await send('Runtime.evaluate', {
 });
 await send('Runtime.evaluate', { expression: "if (!sidePanel.hidden) openSide(sideMode)" });
 
+// 영역 선택이 실제로 되는가 — 스크롤한 상태에서, 터치로.
+// 오버레이를 #pageScroll 기준으로 두면 스크롤 콘텐츠 맨 위에 고정되어
+// 첫 페이지를 벗어나는 순간 화면 밖(-341,950px)으로 사라진다. 실제로 그렇게 깨졌고,
+// 다른 점검 15개는 전부 통과했다. 터치는 mouse* 만 듣던 시절 아무 일도 일어나지 않았다.
+await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+await send('Runtime.evaluate', { expression: 'goto(252); toggleRegionMode(true)' });
+await sleep(1500);
+const spot = (await send('Runtime.evaluate', {
+  returnByValue: true,
+  expression: `(() => {
+    const b = document.querySelector('.pageBox[data-page="252"]');
+    if (!b) return null;
+    const r = b.getBoundingClientRect(), o = document.querySelector('#regionOverlay').getBoundingClientRect();
+    return { x: Math.round(r.left + r.width * 0.2), y: Math.round(r.top + r.height * 0.4),
+             overlayVisible: o.bottom > 0 && o.top < window.innerHeight };
+  })()`,
+})).result.value;
+let regionProbe = { drawn: false, overlayVisible: false };
+if (spot) {
+  regionProbe.overlayVisible = spot.overlayVisible;
+  const touch = (type, pts) => send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  await touch('touchStart', [{ x: spot.x, y: spot.y }]);
+  for (let i = 1; i <= 6; i++) await touch('touchMove', [{ x: spot.x + i * 40, y: spot.y + i * 20 }]);
+  await touch('touchEnd', []);
+  await sleep(600);
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: 'JSON.stringify(region)' });
+  const val = r.result.value;
+  regionProbe.drawn = !!val && val !== 'null';
+  regionProbe.value = val;
+}
+
 ws.close(); chrome.kill();
 const m = result.value;
+if (!m) {
+  console.error(`페이지를 읽지 못했습니다: ${URL_}`);
+  console.error('서버가 떠 있는지, config.json 의 host 와 맞는지 확인하십시오.');
+  process.exit(2);
+}
 const pp = panelProbe.result.value;
 const nav = navProbe.result.value;
+const rp = regionProbe;
 
 const checks = [
   ['문서 전체가 스크롤되지 않는다', m.documentScrollsBy === 0, `documentScrollsBy=${m.documentScrollsBy}`],
@@ -140,6 +198,9 @@ const checks = [
   ['화면 밖 페이지는 메모리에서 비운다', m.imagesInDom > 0 && m.imagesInDom <= 12, `${m.imagesInDom} images`],
   ['목차 클릭이 그 페이지로 데려간다 (FR-12)', nav.ok && nav.want === nav.got,
    nav.ok ? `목차 p.${nav.want} → 도착 p.${nav.got}` : nav.why],
+  ['스크롤 후에도 영역 오버레이가 화면에 있다 (FR-3)', rp.overlayVisible,
+   rp.overlayVisible ? '보임' : '화면 밖 — 스크롤 콘텐츠 맨 위에 고정됨'],
+  ['터치 드래그로 영역이 잡힌다 (FR-3)', rp.drawn, rp.value || '(없음)'],
 ];
 
 let failed = 0;
