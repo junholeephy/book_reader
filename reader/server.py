@@ -333,6 +333,50 @@ def write_answer(qid: str, patch: dict) -> dict:
     return ans
 
 
+def partial_string_field(buf: str, field: str) -> str:
+    """아직 끝나지 않은 JSON 에서 문자열 필드의 값을 최대한 꺼낸다.
+
+    StructuredOutput 의 인자는 `input_json_delta` 로 조금씩 흘러온다.
+    완성될 때까지 기다리지 않고 지금까지 온 만큼만 보여주기 위한 것이다.
+    JSON 파서를 쓸 수 없다 — 아직 유효한 JSON 이 아니다.
+    """
+    key = f'"{field}"'
+    i = buf.find(key)
+    if i < 0:
+        return ""
+    i = buf.find(":", i + len(key))
+    if i < 0:
+        return ""
+    i = buf.find('"', i + 1)
+    if i < 0:
+        return ""
+    out, j, n = [], i + 1, len(buf)
+    while j < n:
+        c = buf[j]
+        if c == "\\":
+            if j + 1 >= n:
+                break                       # 이스케이프가 잘렸다. 여기까지만
+            e = buf[j + 1]
+            if e == "u":
+                if j + 6 > n:
+                    break
+                try:
+                    out.append(chr(int(buf[j + 2:j + 6], 16)))
+                except ValueError:
+                    pass
+                j += 6
+                continue
+            out.append({"n": "\n", "t": "\t", "r": "\r",
+                        '"': '"', "\\": "\\", "/": "/"}.get(e, e))
+            j += 2
+            continue
+        if c == '"':
+            break                           # 값이 끝났다
+        out.append(c)
+        j += 1
+    return "".join(out)
+
+
 def describe_tool(name: str, inp: dict) -> str | None:
     """워커의 도구 호출을 사람이 읽는 한 줄로 옮긴다 (FR-10).
 
@@ -400,6 +444,8 @@ def run_worker(qid: str, mode: str) -> None:
 
     payload, progress, seen = None, [], set()
     activity, tokens, last_write = None, 0, 0.0
+    field = "summary" if mode == "summary" else "detail"
+    out_buf, out_index, partial, last_partial = "", None, "", 0.0
 
     def flush_activity(force: bool = False) -> None:
         """진행 문구를 파일에 반영한다. 델타는 초당 수십 번 오므로 2초로 조인다."""
@@ -437,14 +483,26 @@ def run_worker(qid: str, mode: str) -> None:
             # 여기서 델타를 잡지 않으면 화면이 몇 분씩 얼어붙는다.
             ev = evt.get("event", {})
             if ev.get("type") == "content_block_start":
-                bt = ev.get("content_block", {}).get("type")
+                cb = ev.get("content_block", {})
+                if cb.get("type") == "tool_use" and cb.get("name") == "StructuredOutput":
+                    out_index = ev.get("index")     # 답변이 실려 오는 블록
+                bt = cb.get("type")
                 activity = {"thinking": "생각 정리 중",
                             "text": "답변 작성 중",
                             "tool_use": "답변 작성 중"}.get(bt, activity)
                 tokens = 0
                 flush_activity()
             elif ev.get("type") == "content_block_delta":
-                est = ev.get("delta", {}).get("estimated_tokens")
+                delta = ev.get("delta", {})
+                if ev.get("index") == out_index and "partial_json" in delta:
+                    # 답변이 쓰이는 대로 내보낸다. 심화는 3분 넘게 걸린다 —
+                    # 다 될 때까지 빈 화면을 보여줄 이유가 없다.
+                    out_buf += delta["partial_json"]
+                    got = partial_string_field(out_buf, field)
+                    if got != partial and monotonic() - last_partial > 0.5:
+                        partial, last_partial = got, monotonic()
+                        write_answer(qid, {"partial": got, "partialField": field})
+                est = delta.get("estimated_tokens")
                 if isinstance(est, int):
                     tokens = max(tokens, est)
                 elif activity is None:
@@ -484,6 +542,7 @@ def run_worker(qid: str, mode: str) -> None:
             return
 
     patch = {"error": None}
+    patch["partial"] = None
     if mode == "summary":
         patch.update({"summary": payload.get("summary", ""), "status": "summary_ready",
                       "summaryMs": elapsed})

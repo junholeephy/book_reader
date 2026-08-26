@@ -330,6 +330,46 @@ class TestChapterSessions(unittest.TestCase):
         self.assertEqual(saved["chapter"], "6")
 
 
+class TestPartialJson(unittest.TestCase):
+    """StructuredOutput 의 인자는 조금씩 흘러온다. 완성될 때까지 기다리지 않고
+    지금까지 온 만큼 보여주기 위해 부분 JSON 에서 값을 꺼낸다."""
+
+    FULL = {"summary": '수식 $|\\beta\\rangle$ 은 얽힘이다.\n두 번째 "줄"',
+            "bookPages": [95]}
+
+    def _text(self):
+        return json.dumps(self.FULL, ensure_ascii=False)
+
+    def test_any_cut_is_a_prefix_of_the_final_value(self):
+        """어디서 잘려도 최종 값의 접두사여야 한다. 화면에 헛것이 뜨면 안 된다."""
+        text = self._text()
+        for cut in range(1, len(text) + 1):
+            got = server.partial_string_field(text[:cut], "summary")
+            self.assertTrue(self.FULL["summary"].startswith(got),
+                            f"{cut}자에서 어긋남: {got!r}")
+
+    def test_complete_json_matches_exactly(self):
+        self.assertEqual(server.partial_string_field(self._text(), "summary"),
+                         self.FULL["summary"])
+
+    def test_missing_field(self):
+        self.assertEqual(server.partial_string_field(self._text(), "detail"), "")
+        self.assertEqual(server.partial_string_field('{"boo', "summary"), "")
+
+    def test_truncated_escape_does_not_leak(self):
+        """이스케이프가 반만 왔을 때 깨진 문자를 내보내면 안 된다."""
+        self.assertEqual(server.partial_string_field('{"summary": "ab\\', "summary"), "ab")
+        self.assertEqual(server.partial_string_field('{"summary": "ab\\u00', "summary"), "ab")
+
+    def test_unicode_escape(self):
+        self.assertEqual(server.partial_string_field('{"summary": "\\uac00\\uac01"', "summary"),
+                         "가각")
+
+    def test_does_not_run_past_the_closing_quote(self):
+        got = server.partial_string_field('{"summary": "끝", "detail": "다른값"}', "summary")
+        self.assertEqual(got, "끝")
+
+
 class TestOrphanReaping(unittest.TestCase):
     """서버가 재시작되면 워커도 죽는데 answers/*.json 은 'running' 으로 남는다.
     화면에는 '33분째 조사 중' 으로 보이지만 실제로는 아무것도 돌지 않는다."""

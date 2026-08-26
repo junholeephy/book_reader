@@ -311,3 +311,13 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 }
 #connBanner[hidden] { display: none; }
 #connBanner button { margin-left: auto; padding: 3px 9px; font-size: 12px; }
+
+/* 답변이 쓰이는 중 */
+.body.streaming, .detail.streaming { opacity: .92; }
+.caret {
+  display: inline-block; width: 7px; height: 1em; margin-left: 2px;
+  background: var(--accent); vertical-align: text-bottom;
+  animation: caretBlink 1s step-end infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
