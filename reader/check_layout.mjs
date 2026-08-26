@@ -89,6 +89,8 @@ const { result } = await send('Runtime.evaluate', {
       pageScrollsHorizontally: scroll.scrollWidth - scroll.clientWidth,
       textLayerSpans: box ? box.querySelectorAll('.tl span').length : 0,
       pageBoxes: pages.querySelectorAll('.pageBox').length,
+      appPosition: getComputedStyle(document.getElementById('app')).position,
+      overscroll: getComputedStyle(document.body).overscrollBehaviorY,
       imagesInDom: pages.querySelectorAll('img').length,
       textBelowImage: Math.round(maxBottom - ir.bottom),
       textRightOfImage: Math.round(maxRight - ir.right),
@@ -201,6 +203,8 @@ const checks = [
   ['스크롤 후에도 영역 오버레이가 화면에 있다 (FR-3)', rp.overlayVisible,
    rp.overlayVisible ? '보임' : '화면 밖 — 스크롤 콘텐츠 맨 위에 고정됨'],
   ['터치 드래그로 영역이 잡힌다 (FR-3)', rp.drawn, rp.value || '(없음)'],
+  ['모바일에서 문서가 밀리지 않는다', m.appPosition === 'fixed' && m.overscroll === 'none',
+   `#app=${m.appPosition}, overscroll-y=${m.overscroll}`],
 ];
 
 let failed = 0;

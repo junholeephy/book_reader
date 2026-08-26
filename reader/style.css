@@ -13,11 +13,23 @@
 
 html, body {
   margin: 0; height: 100%;
+  /* 모바일에서 화면 끝을 넘겨 끌 때 페이지 전체가 밀리거나
+     당겨서 새로고침이 걸리는 것을 막는다 */
+  overscroll-behavior: none;
   background: var(--bg); color: var(--ink);
   font: 15px/1.6 -apple-system, "SF Pro Text", "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
 }
 
-#app { display: flex; height: 100vh; }
+/* 100vh 는 모바일에서 '주소창이 숨은 상태'의 높이다.
+   주소창이 보이는 동안에는 실제 보이는 영역보다 커서 문서가 그만큼 스크롤되고,
+   아래로 끌면 상단 툴바(목차·영역 선택)가 화면 위로 밀려 사라진다.
+   dvh 는 현재 보이는 높이를 따라간다. position:fixed 로 문서 스크롤 자체를 없앤다. */
+#app {
+  display: flex;
+  position: fixed; inset: 0;
+  height: 100vh;        /* dvh 미지원 브라우저용 */
+  height: 100dvh;
+}
 
 /* ---------- 공통 ---------- */
 
