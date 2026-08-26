@@ -212,6 +212,9 @@ def crop_region(book_page: int, x: int, y: int, w: int, h: int, qid: str) -> Pat
 
 # ---------------------------------------------------------------- 상태 / 기록
 
+BOOK_SCOPE = "__book__"      # 특정 장에 속하지 않는 '책 전체' 질문
+
+
 def chapter_key(book_page: int) -> str:
     """이 페이지가 속한 최상위 항목. 대화 세션을 가르는 단위다.
 
@@ -267,6 +270,28 @@ def append_history(question: dict, answer: dict) -> None:
     lines.append("\n---\n")
     with (QA / "history.md").open("a") as f:
         f.write("".join(lines))
+
+
+def delete_question(qid: str) -> dict:
+    """질문을 휴지통으로 옮긴다. 지우지 않는다.
+
+    실수로 지운 것을 되돌릴 수 있어야 한다 — 답변 하나에 몇 분씩 들었다.
+    학습 노트(history.md)는 건드리지 않는다. 그쪽은 영구 기록이고,
+    가운데를 도려내면 파일이 깨질 위험이 있다.
+    """
+    if not re.fullmatch(r"[0-9a-zA-Z_-]{1,64}", qid):
+        raise ValueError(f"bad question id: {qid}")
+    trash = QA / "trash"
+    trash.mkdir(parents=True, exist_ok=True)
+    moved = []
+    for src in ((QA / "questions" / f"{qid}.json"),
+                (QA / "answers" / f"{qid}.json"),
+                (QA / "crops" / f"{qid}.png")):
+        if src.exists():
+            dst = trash / f"{src.parent.name}-{src.name}"
+            src.replace(dst)
+            moved.append(str(dst.relative_to(QA)))
+    return {"deleted": qid, "movedTo": moved}
 
 
 def load_history() -> list:
@@ -486,8 +511,11 @@ def submit_question(req: dict) -> str:
         "question": (req.get("question") or "").strip(),
         "selectedText": (req.get("selectedText") or "").strip() or None,
         "cropPath": None,
-        "chapter": chapter_key(book_page),
+        "scope": "book" if req.get("scope") == "book" else "page",
     }
+    # 책 전체 질문은 어느 장에도 묶지 않는다. 대화 세션도 따로 쓴다 —
+    # 6장을 읽던 맥락이 "3장과 10장의 관계" 같은 질문에 끼어들면 안 된다.
+    q["chapter"] = BOOK_SCOPE if q["scope"] == "book" else chapter_key(book_page)
     region = req.get("region")
     if region:
         path = crop_region(book_page, int(region["x"]), int(region["y"]),
@@ -590,6 +618,8 @@ class Handler(BaseHTTPRequestHandler):
             if parts[1] == "answer" and len(parts) == 4 and parts[3] == "expand":
                 enqueue(parts[2], "detail")
                 return self._json({"status": "pending", "pending": pending_count()})
+            if parts[1] == "question" and len(parts) == 4 and parts[3] == "delete":
+                return self._json(delete_question(parts[2]))
             if parts[1] == "answer" and len(parts) == 4 and parts[3] == "retry":
                 ans = read_answer(parts[2])
                 enqueue(parts[2], "detail" if ans.get("summary") else "summary")

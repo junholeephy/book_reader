@@ -51,9 +51,16 @@ import json, pathlib, sys
 qid, mode, qa_dir, refs = sys.argv[1:5]
 q = json.loads(pathlib.Path(qa_dir, "questions", f"{qid}.json").read_text())
 
+book_wide = q.get("scope") == "book"
+
 parts = [f"[모드: {mode.upper()}]", ""]
-parts.append(f"사용자는 지금 책 p.{q['bookPage']} 를 읽고 있습니다.")
-parts.append(f"(PDF 페이지로는 {q['bookPage'] + 34} 입니다.)")
+if book_wide:
+    parts.append("이것은 **책 전체에 대한 질문**입니다. 특정 페이지에 매이지 마십시오.")
+    parts.append("필요하면 책 전체를 검색하고 여러 장을 오가며 답하십시오.")
+    parts.append(f"(참고로 사용자는 p.{q['bookPage']} 근처를 보고 있었습니다.)")
+else:
+    parts.append(f"사용자는 지금 책 p.{q['bookPage']} 를 읽고 있습니다.")
+    parts.append(f"(PDF 페이지로는 {q['bookPage'] + 34} 입니다.)")
 
 if q.get("selectedText"):
     parts += ["", "본문에서 다음 부분을 지목했습니다:", f'"""{q["selectedText"]}"""']

@@ -330,6 +330,76 @@ class TestChapterSessions(unittest.TestCase):
         self.assertEqual(saved["chapter"], "6")
 
 
+class TestDeleteAndBookScope(unittest.TestCase):
+    """삭제(휴지통)와 책 전체 질문 (FR-14)."""
+
+    def _qa(self, tmp):
+        qa = Path(tmp)
+        for d in ("questions", "answers", "crops"):
+            (qa / d).mkdir()
+        return qa
+
+    def test_delete_moves_to_trash_not_gone(self):
+        """지우는 게 아니라 옮긴다. 답변 하나에 몇 분씩 걸린다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            (qa / "questions" / "q1.json").write_text("{}")
+            (qa / "answers" / "q1.json").write_text("{}")
+            (qa / "crops" / "q1.png").write_bytes(b"x")
+            with mock.patch.object(server, "QA", qa):
+                res = server.delete_question("q1")
+            self.assertEqual(len(res["movedTo"]), 3)
+            for d in ("questions", "answers", "crops"):
+                self.assertFalse((qa / d / "q1.json").exists() and d != "crops")
+            self.assertEqual(len(list((qa / "trash").iterdir())), 3)
+
+    def test_delete_is_reversible(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            (qa / "questions" / "q1.json").write_text('{"id":"q1"}')
+            with mock.patch.object(server, "QA", qa):
+                server.delete_question("q1")
+                moved = next((qa / "trash").iterdir())
+                moved.replace(qa / "questions" / "q1.json")
+            self.assertTrue((qa / "questions" / "q1.json").exists())
+
+    def test_delete_rejects_bad_id(self):
+        """경로 조작을 막는다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(server, "QA", Path(tmp)):
+                for bad in ("../secret", "a/b", "x" * 100, ""):
+                    with self.subTest(bad=bad), self.assertRaises(ValueError):
+                        server.delete_question(bad)
+
+    def test_delete_missing_is_harmless(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            with mock.patch.object(server, "QA", qa):
+                self.assertEqual(server.delete_question("nope")["movedTo"], [])
+
+    def test_book_scope_gets_its_own_chapter_key(self):
+        """책 전체 질문이 서 있던 장에 묶이면 안 된다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            qa = self._qa(tmp)
+            with mock.patch.object(server, "QA", qa), mock.patch.object(server, "enqueue"):
+                bid = server.submit_question({"bookPage": 252, "question": "?", "scope": "book"})
+                pid = server.submit_question({"bookPage": 252, "question": "?"})
+            b = json.loads((qa / "questions" / f"{bid}.json").read_text())
+            n = json.loads((qa / "questions" / f"{pid}.json").read_text())
+        self.assertEqual(b["scope"], "book")
+        self.assertEqual(b["chapter"], server.BOOK_SCOPE)
+        self.assertEqual(n["scope"], "page")
+        self.assertEqual(n["chapter"], "6")
+        self.assertNotEqual(b["chapter"], n["chapter"])
+
+    def test_book_scope_session_is_separate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "state.json").write_text(json.dumps({"lastBookPage": 1}))
+            with mock.patch.object(server, "QA", Path(tmp)):
+                self.assertNotEqual(server.session_for(server.BOOK_SCOPE),
+                                    server.session_for("6"))
+
+
 class TestQuestionIds(unittest.TestCase):
     def test_ids_are_unique_within_same_second(self):
         with tempfile.TemporaryDirectory() as tmp:
