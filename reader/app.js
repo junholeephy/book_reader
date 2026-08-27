@@ -50,10 +50,18 @@ function setConnected(ok) {
   }
 }
 
+/** 문서가 놓인 자리를 기준으로 주소를 만든다.
+ *
+ * code-server 의 /proxy/8765/ 처럼 하위 경로에 얹혀 프록시되면
+ * '/api/...' 는 프록시가 아니라 code-server 자신을 부른다 — 404 로 죽는다.
+ * document.baseURI 에 붙이면 어디에 얹히든 같은 서버로 간다.
+ */
+const url = (path) => new URL(path.replace(/^\//, ''), document.baseURI).href;
+
 const api = async (path, opts) => {
   let res;
   try {
-    res = await fetch(path, opts);
+    res = await fetch(url(path), opts);
   } catch (e) {
     setConnected(false);          // 네트워크 자체가 끊긴 경우
     throw e;
@@ -224,7 +232,7 @@ async function fillBox(n) {
   const img = document.createElement('img');
   img.alt = `책 p.${n}`;
   img.loading = 'lazy';
-  img.src = `/api/page/${n}/image`;
+  img.src = url(`/api/page/${n}/image`);
   img.onload = () => {
     const aspect = img.naturalHeight / img.naturalWidth;
     if (Math.abs(aspect - Number(box.dataset.aspect)) > 0.001) {
@@ -646,7 +654,7 @@ function itemHtml(it) {
   const parts = [`<div class="q">${escapeHtml(q.question)}</div>`,
                  `<div class="meta">${where} · ${(q.createdAt || '').replace('T', ' ').replace('Z', '')} ${badge}</div>`];
   if (q.selectedText) parts.push(`<blockquote>${escapeHtml(q.selectedText)}</blockquote>`);
-  if (q.cropPath) parts.push(`<img class="crop" src="/api/crop/${q.id}" alt="선택한 영역">`);
+  if (q.cropPath) parts.push(`<img class="crop" src="${url('/api/crop/' + q.id)}" alt="선택한 영역">`);
   if (['pending', 'running'].includes(st) && !a.partial) parts.push(progressHtml(a));
 
   // 쓰이는 대로 보여준다. 심화는 3분 넘게 걸리는데 그동안 빈 화면일 이유가 없다.

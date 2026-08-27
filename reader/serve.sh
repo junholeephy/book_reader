@@ -31,6 +31,19 @@ for h in config.resolve_hosts('$HOST')[0]:
 # 다른 기기에서 쓸 주소. 로컬이 아닌 것이 있으면 그것, 없으면 localhost.
 # SSH 로 원격에서 부르면 localhost 는 부르는 쪽 기기를 가리켜 쓸모가 없다.
 remote_addr() { addrs | grep -v '^localhost$' | head -1 || true; }
+# tailscale serve 로 HTTPS 를 열어두었으면 그 주소가 가장 낫다.
+# 태블릿 브라우저는 평문 HTTP 를 점점 꺼리고, 인증서가 붙으면 경고도 없다.
+serve_url() {
+  for ts in tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale; do
+    command -v "$ts" >/dev/null 2>&1 || continue
+    "$ts" serve status 2>/dev/null | awk -v want="http://127.0.0.1:$PORT" '
+      /^https:\/\// { url = $1 } $NF == want { print url; exit }'
+    return 0
+  done
+}
+# 원격에서 부르는 길이 SSH 만 있는 게 아니다. code-server 터미널에서도 부른다.
+# 브라우저를 이 컴퓨터에서 여는 것이 맞는지 판단할 때만 쓴다.
+remote_session() { [ -n "${SSH_CONNECTION:-}" ] || [ "${TERM_PROGRAM:-}" = vscode ]; }
 addr() { a="$(remote_addr)"; [ -n "$a" ] && echo "$a" || echo localhost; }
 running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 # pid 파일이 없어도 이미 떠 있을 수 있다 (fg 로 띄웠거나 pid 파일이 지워진 경우).
@@ -56,7 +69,7 @@ case "${1:-start}" in
   url)                      # 스크립트에서 주소만 받아갈 때
     case "${2:-remote}" in
       local)  echo "http://localhost:$PORT" ;;
-      *)      echo "http://$(addr):$PORT" ;;
+      *)      S="$(serve_url)"; [ -n "$S" ] && echo "$S" || echo "http://$(addr):$PORT" ;;
     esac
     ;;
   log)
@@ -96,18 +109,16 @@ case "${1:-start}" in
       echo "기동했습니다 (pid $(cat "$PIDFILE"))."
     fi
     echo
-    if [ -n "${SSH_CONNECTION:-}" ]; then
-      # 원격에서 불렀다. 여기서 쓸 주소를 먼저 보여준다.
-      R="$(remote_addr)"
-      [ -n "$R" ] && echo "    http://$R:$PORT      <- 지금 쓰는 기기에서"
-      echo "    http://localhost:$PORT   (책이 있는 컴퓨터에서)"
-    else
-      addrs | while read -r a; do echo "    http://$a:$PORT"; done
-    fi
+    # 어디서 부르든 같은 순서로 보여준다. 라벨이 분명하면 환경을 감지할 필요가 없다.
+    # localhost 를 먼저 찍으면 태블릿에서 그걸 눌렀다가 태블릿 자신을 부른다.
+    R="$(remote_addr)"; S="$(serve_url)"
+    OTHER="${S:-${R:+http://$R:$PORT}}"
+    [ -n "$OTHER" ] && echo "    $OTHER   <- 어디서나 (tailnet)"
+    echo "    http://localhost:$PORT   <- 책이 있는 컴퓨터에서만"
     echo
     echo "  중지: ./reader/serve.sh stop   로그: ./reader/serve.sh log"
 
-    if [ -z "${SSH_CONNECTION:-}" ] && [ "$HOST" = "127.0.0.1" ] && command -v open >/dev/null; then
+    if ! remote_session && [ "$HOST" = "127.0.0.1" ] && command -v open >/dev/null; then
       open "http://localhost:$PORT"        # 이 컴퓨터 앞에 앉아 있다
     elif [ -n "${SSH_CONNECTION:-}" ] && [ "$HOST" = "127.0.0.1" ]; then
       # 원격에서 불렀는데 로컬에만 묶여 있다. 터널이 필요하다.
