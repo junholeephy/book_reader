@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- PWA 아이콘. 켓 표기 |ψ⟩ — 책의 주제를 한 글자로 줄인 것.
+       배경을 꽉 채운다: 안드로이드가 마스킹할 때 잘려도 여백이 안 생긴다.
+       글리프는 가운데 80% (maskable safe zone) 안에 둔다. -->
+  <rect width="512" height="512" fill="#2f6f4e"/>
+  <g fill="#f6f5f2" stroke="#f6f5f2" transform="translate(-12,0)">
+    <rect x="146" y="170" width="16" height="172" rx="8" stroke="none"/>
+    <text x="248" y="256" font-family="Georgia, 'Times New Roman', serif"
+          font-size="190" text-anchor="middle" dominant-baseline="central"
+          stroke="none">&#968;</text>
+    <path d="M 334 172 L 390 256 L 334 340" fill="none" stroke-width="16"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

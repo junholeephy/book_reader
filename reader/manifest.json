@@ -1,0 +1,15 @@
+{
+  "name": "N&C 리딩 어시스턴트",
+  "short_name": "N&C 리더",
+  "description": "Nielsen & Chuang 을 읽으며 묻고 답을 받는 도구",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f5f2",
+  "theme_color": "#2f6f4e",
+  "icons": [
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+  ]
+}
