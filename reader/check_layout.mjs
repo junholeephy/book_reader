@@ -77,6 +77,12 @@ const { result } = await send('Runtime.evaluate', {
       appPosition: getComputedStyle(document.getElementById('app')).position,
       overscroll: getComputedStyle(document.body).overscrollBehaviorY,
       questionPageLinks: document.querySelectorAll('#thread .meta .pageRef[data-page]').length,
+      // 답변에 마크다운 표가 있으면 실제 <table> 로 그려져야 한다.
+      answerTables: document.querySelectorAll('#thread table').length,
+      rawTablePipes: new RegExp(String.fromCharCode(92,124) + '\\\\s*---\\\\s*' + String.fromCharCode(92,124)).test(document.querySelector('#thread').textContent),
+      // 표 셀의 \| 는 LaTeX 이중세로선이 되어 켓 표기를 깨뜨린다
+      brokenKets: [...document.querySelectorAll('#thread table .katex annotation')]
+        .filter((a) => a.textContent.includes(String.fromCharCode(92, 124))).length,
       // 페이지에 묶인 질문 수. 질문이 없거나 전부 '책 전체' 면 링크가 0 이어도 정상이다.
       pageAnchoredQuestions: (typeof items === 'undefined' ? []
         : items.filter((i) => i.question.scope !== 'book')).length,
@@ -194,6 +200,10 @@ const checks = [
   ['터치 드래그로 영역이 잡힌다 (FR-3)', rp.drawn, rp.value || '(없음)'],
   ['모바일에서 문서가 밀리지 않는다', m.appPosition === 'fixed' && m.overscroll === 'none',
    `#app=${m.appPosition}, overscroll-y=${m.overscroll}`],
+  ['답변의 표가 원문 그대로 남지 않는다', !m.rawTablePipes,
+   m.rawTablePipes ? '| --- | 가 그대로 보임' : `표 ${m.answerTables}개 렌더`],
+  ['표 셀의 켓 표기가 깨지지 않는다', m.brokenKets === 0,
+   m.brokenKets ? `${m.brokenKets}개에 이중세로선` : 'ok'],
   ['질문에서 물었던 페이지로 갈 수 있다',
    m.pageAnchoredQuestions === 0 || m.questionPageLinks > 0,
    m.pageAnchoredQuestions === 0

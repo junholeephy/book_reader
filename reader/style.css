@@ -321,3 +321,15 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 }
 @keyframes caretBlink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+/* ---------- 답변 속 표 ---------- */
+
+.tableWrap { overflow-x: auto; margin: 10px 0; }
+.qaItem table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.qaItem th, .qaItem td {
+  border: 1px solid var(--line); padding: 5px 8px;
+  text-align: left; vertical-align: top; line-height: 1.5;
+}
+.qaItem th { background: var(--bg); font-weight: 600; white-space: nowrap; }
+.qaItem tbody tr:nth-child(even) { background: rgba(0,0,0,.02); }
+.qaItem td .katex { font-size: 1em; }
