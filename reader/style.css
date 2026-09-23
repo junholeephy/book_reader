@@ -63,7 +63,7 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 #pageScroll { flex: 1; min-width: 0; overflow: auto; padding: 16px; position: relative;
              user-select: none; -webkit-user-select: none; }
 
-#pages { width: 100%; max-width: 900px; position: relative; }
+#pages { width: 100%; max-width: 900px; margin: 0 auto; position: relative; }
 
 .pageBox {
   position: relative; margin: 0 auto 18px; background: #fff;

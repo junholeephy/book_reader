@@ -372,3 +372,10 @@ check_layout.mjs now has 15 assertions. 54 unit tests pass. Documented as IT-10.
 **Context**: OPERATIONS - workflow complete
 
 ---
+## 확대 기능 수정 (좁은 화면)
+**Timestamp**: 2026-09-23T00:00:00Z
+**User Input**: "지금 pdf 부분의 확대기능에 이슈가 좀 있는 것 같은데, 화면이 좀 작다면 확대가 안되는 것 같아"
+**AI Response**: "#pages 가 width:100% + max-width 라 컨테이너 폭이 상한이었다. 좁은 화면에서는 max-width 를 키워도 폭이 그대로였다 — 확대 버튼이 무동작. applyZoomWidth() 로 명시 폭(컨테이너 폭 × zoom)을 주고, 100% 초과 시 가로 스크롤로 훑게 했다. 상한 140%→400%, 스텝은 100% 이상에서 25%. check_layout.mjs 에 좁은 창(760px) 확대 점검 추가 후 역검증(버그 되살리면 1.00배로 FAIL)."
+**Context**: Construction — 결함 수정, 브라우저 점검 22개 전부 통과
+
+---

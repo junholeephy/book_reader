@@ -71,7 +71,9 @@ const { result } = await send('Runtime.evaluate', {
     return {
       documentScrollsBy: de.scrollHeight - de.clientHeight,
       bodyScrollsBy: document.body.scrollHeight - document.body.clientHeight,
-      pageScrollsHorizontally: scroll.scrollWidth - scroll.clientWidth,
+      // 확대(100% 초과)하면 가로로 넘치는 것이 정상이다. 그때는 검사하지 않는다.
+      pageScrollsHorizontally: (typeof zoom !== 'undefined' && zoom > 100)
+        ? 0 : scroll.scrollWidth - scroll.clientWidth,
       textLayerSpans: box ? box.querySelectorAll('.tl span').length : 0,
       pageBoxes: pages.querySelectorAll('.pageBox').length,
       appPosition: getComputedStyle(document.getElementById('app')).position,
@@ -167,6 +169,24 @@ if (spot) {
   regionProbe.value = val;
 }
 
+// 확대가 좁은 화면에서도 먹히는가.
+// #pages 를 width:100% + max-width 로만 두면 컨테이너 폭이 상한이라,
+// 화면이 좁을 때 max-width 를 키워도 폭이 그대로다 — 확대 버튼이 아무 일도 하지 않았다.
+// 넓은 화면에서는 멀쩡해 보이므로 좁혀놓고 재야 잡힌다.
+await send('Emulation.setDeviceMetricsOverride',
+           { width: 760, height: 1000, deviceScaleFactor: 1, mobile: false });
+await sleep(800);
+const pageW = () => send('Runtime.evaluate', {
+  returnByValue: true,
+  expression: `Math.round(document.querySelector('#pages').getBoundingClientRect().width)`,
+}).then((r) => r.result.value);
+await send('Runtime.evaluate', { expression: 'setZoom(100)' }); await sleep(600);
+const zoomProbe = { narrow: await pageW() };
+await send('Runtime.evaluate', { expression: 'setZoom(200)' }); await sleep(600);
+zoomProbe.wide = await pageW();
+zoomProbe.ratio = zoomProbe.narrow ? zoomProbe.wide / zoomProbe.narrow : 0;
+await send('Runtime.evaluate', { expression: 'setZoom(100)' }); await sleep(400);
+
 ws.close(); chrome.kill();
 const m = result.value;
 if (!m) {
@@ -177,6 +197,7 @@ if (!m) {
 const pp = panelProbe.result.value;
 const nav = navProbe.result.value;
 const rp = regionProbe;
+const zp = zoomProbe;
 
 const checks = [
   ['문서 전체가 스크롤되지 않는다', m.documentScrollsBy === 0, `documentScrollsBy=${m.documentScrollsBy}`],
@@ -204,6 +225,8 @@ const checks = [
    m.rawTablePipes ? '| --- | 가 그대로 보임' : `표 ${m.answerTables}개 렌더`],
   ['표 셀의 켓 표기가 깨지지 않는다', m.brokenKets === 0,
    m.brokenKets ? `${m.brokenKets}개에 이중세로선` : 'ok'],
+  ['화면이 좁아도 확대가 먹힌다', zp.ratio > 1.8 && zp.ratio < 2.2,
+   `창 760px 에서 100%=${zp.narrow}px → 200%=${zp.wide}px (${zp.ratio.toFixed(2)}배)`],
   ['질문에서 물었던 페이지로 갈 수 있다',
    m.pageAnchoredQuestions === 0 || m.questionPageLinks > 0,
    m.pageAnchoredQuestions === 0

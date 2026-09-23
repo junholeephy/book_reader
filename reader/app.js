@@ -208,11 +208,28 @@ function buildPageBoxes() {
 }
 
 /** 표시 폭이 바뀌면(창 크기, 패널 개폐, 분할 이동) 모든 자리 높이를 다시 잡는다. */
+/** 기준 폭 = 화면에 딱 맞는 폭(최대 900). 여기에 zoom 을 곱한다.
+ *  max-width 로만 키우면 컨테이너 폭이 상한이라, 화면이 좁을 때 확대가 먹히지 않는다.
+ *  100% 를 넘으면 가로로 넘쳐 스크롤된다 — 그게 확대의 의미다. */
+function applyZoomWidth() {
+  const avail = el.scroll.clientWidth - 32;        // #pageScroll 의 좌우 여백
+  if (avail <= 0) return;
+  const base = Math.min(900, avail);
+  el.pages.style.maxWidth = 'none';
+  el.pages.style.width = `${Math.round(base * zoom / 100)}px`;
+}
+
+/** 100% 아래는 앞뒤 페이지를 훑는 구간이라 10%씩, 위는 글자를 키우는 구간이라 25%씩.
+ *  한 스텝 10% 로 고정하면 100→400% 에 30번을 눌러야 한다. */
+function zoomStep(dir) { setZoom(zoom + dir * (zoom < 100 ? 10 : 25)); }
+
 function setZoom(pct) {
   const keep = page;                       // 폭이 바뀌면 스크롤 좌표가 통째로 달라진다
-  zoom = Math.max(40, Math.min(140, Math.round(pct / 10) * 10));
+  // 상한이 140% 면 좁은 화면에서 확대가 무의미하다 — 기준 폭 자체가 작기 때문이다.
+  // 400% 까지 열어두고, 넓힐수록 가로 스크롤로 훑는다.
+  zoom = Math.max(40, Math.min(400, Math.round(pct / 5) * 5));
   el.zoomLevel.textContent = `${zoom}%`;
-  el.pages.style.maxWidth = `${Math.round(900 * zoom / 100)}px`;
+  applyZoomWidth();
   relayoutKeeping(keep);                   // 보던 페이지를 그대로 유지한다
 }
 
@@ -293,6 +310,7 @@ function redrawVisibleLayers() {
  *   레이아웃이 바뀌어 방금 맞춘 위치가 날아갔다.) */
 function relayoutKeeping(target) {
   const keep = target ?? page;
+  applyZoomWidth();                        // 컨테이너 폭이 바뀌었을 수 있다
   redrawVisibleLayers();
   goto(keep);
 }
@@ -906,8 +924,8 @@ el.searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => runSearch(el.searchInput.value), 250);
 });
-$('zoomOut').onclick = () => setZoom(zoom - 10);
-$('zoomIn').onclick = () => setZoom(zoom + 10);
+$('zoomOut').onclick = () => zoomStep(-1);
+$('zoomIn').onclick = () => zoomStep(1);
 $('tocBtn').onclick = () => openSide('toc');
 $('searchBtn').onclick = () => openSide('search');
 $('sideClose').onclick = () => openSide(sideMode);
@@ -945,8 +963,8 @@ document.addEventListener('keydown', (e) => {
   if (document.activeElement === el.input || document.activeElement === el.pageInput) return;
   if (e.key === 'ArrowLeft') goto(page - 1, { smooth: true });
   if (e.key === 'ArrowRight') goto(page + 1, { smooth: true });
-  if (e.key === '-' || e.key === '_') setZoom(zoom - 10);
-  if (e.key === '=' || e.key === '+') setZoom(zoom + 10);
+  if (e.key === '-' || e.key === '_') zoomStep(-1);
+  if (e.key === '=' || e.key === '+') zoomStep(1);
   if (e.key === 't' || e.key === 'T') openSide('toc');
   if (e.key === '/') { e.preventDefault(); openSide('search'); }
 });
@@ -992,6 +1010,7 @@ el.divider.addEventListener('mousedown', (e) => {
     renderSlowdown();
     el.thread.scrollTop = el.thread.scrollHeight;
     buildPageBoxes();
+    applyZoomWidth();
     goto(state.lastBookPage ?? 1);        // FR-7: 읽던 위치에서 재시작
     if (busyCount()) startPolling();
   } catch (e) {
