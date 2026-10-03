@@ -169,6 +169,77 @@ if (spot) {
   regionProbe.value = val;
 }
 
+// 하이라이트: 글자를 골라 칠하면 **고른 글자만** 칠해지는가.
+// 투명 글자 레이어는 낱말마다 따로 놓인 span 이라 getClientRects() 가 낱말 수만큼
+// 사각형을 돌려준다. 줄로 합칠 때 줄 경계를 넘어 뭉치면, 고르지도 않은 글자가 칠해진다.
+// 이건 눈으로 봐야 알아채고 단위 테스트로는 잡히지 않는다.
+await send('Runtime.evaluate', { expression: 'goto(252)' });
+await sleep(1500);
+const hlProbe = (await send('Runtime.evaluate', {
+  returnByValue: true,
+  expression: `(() => {
+    const FROM = 40, TO = 95;
+    const spans = [...document.querySelectorAll('.pageBox[data-page="252"] .tl span')];
+    if (spans.length < TO + 1) return { skip: '글자 레이어 없음' };
+    const r = document.createRange();
+    r.setStart(spans[FROM].firstChild, 0); r.setEnd(spans[TO].firstChild, 1);
+    const sel = document.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    document.dispatchEvent(new Event('selectionchange'));
+    if (!selRects || !selRects.length) return { skip: '선택을 재지 못함' };
+
+    const box = document.querySelector('.pageBox[data-page="252"]');
+    const bb = box.getBoundingClientRect(), k = 1328 / box.clientWidth;
+    const rects = selRects[0].rects;
+    let bad = 0;
+    spans.forEach((sp, i) => {
+      if (i >= FROM && i <= TO) return;
+      const q = sp.getBoundingClientRect();
+      if (!q.width) return;
+      const cx = (q.left + q.width / 2 - bb.left) * k, cy = (q.top + q.height / 2 - bb.top) * k;
+      for (const re of rects)
+        if (cx >= re.x && cx <= re.x + re.w && cy >= re.y && cy <= re.y + re.h) bad++;
+    });
+    let overlap = 0;
+    const sorted = [...rects].sort((a, b) => a.y - b.y);
+    for (let i = 1; i < sorted.length; i++)
+      if (sorted[i].y < sorted[i - 1].y + sorted[i - 1].h - 2) overlap++;
+    sel.removeAllRanges();
+    return { lines: rects.length, bad, overlap, barShown: !document.querySelector('#hlBar').hidden };
+  })()`,
+})).result.value;
+
+// 저장된 좌표가 화면의 제자리에 그려지는가 (렌더 픽셀 -> 화면 픽셀 환산).
+// 스스로 하나 만들고 재고 지운다. 사용자의 하이라이트 유무에 기대면
+// 데이터가 비었을 때 '통과' 라고 말하면서 아무것도 보지 않는 점검이 된다.
+// 확대까지 바꿔서 잰다 — 환산이 틀리면 배율에서 어긋남이 드러난다.
+const hlDraw = (await send('Runtime.evaluate', {
+  returnByValue: true, awaitPromise: true,
+  expression: `(async () => {
+    const want = { x: 300, y: 800, w: 400, h: 60 };
+    const made = await createHighlight(252, [want], '점검용');
+    try {
+      const out = [];
+      for (const z of [100, 175]) {
+        setZoom(z);
+        await new Promise((r) => setTimeout(r, 700));
+        const box = document.querySelector('.pageBox[data-page="252"]');
+        const d = [...document.querySelectorAll('.hlRect')].find((x) => x.dataset.id === made.id);
+        if (!d) { out.push({ zoom: z, off: 999, why: '사각형이 그려지지 않음' }); continue; }
+        const bb = box.getBoundingClientRect(), q = d.getBoundingClientRect();
+        const k = box.clientWidth / 1328;
+        out.push({ zoom: z,
+          off: Math.round(Math.abs((q.left - bb.left) - want.x * k))
+             + Math.round(Math.abs((q.top - bb.top) - want.y * k))
+             + Math.round(Math.abs(q.width - want.w * k)) });
+      }
+      setZoom(100);
+      return { worst: Math.max(...out.map((o) => o.off)), detail: out };
+    } finally {
+      await deleteHighlight(made.id);
+    }
+  })()`,
+})).result.value;
+
 // 확대가 좁은 화면에서도 먹히는가.
 // #pages 를 width:100% + max-width 로만 두면 컨테이너 폭이 상한이라,
 // 화면이 좁을 때 max-width 를 키워도 폭이 그대로다 — 확대 버튼이 아무 일도 하지 않았다.
@@ -225,6 +296,14 @@ const checks = [
    m.rawTablePipes ? '| --- | 가 그대로 보임' : `표 ${m.answerTables}개 렌더`],
   ['표 셀의 켓 표기가 깨지지 않는다', m.brokenKets === 0,
    m.brokenKets ? `${m.brokenKets}개에 이중세로선` : 'ok'],
+  ['하이라이트가 고른 글자만 칠한다', hlProbe.skip ? true : hlProbe.bad === 0,
+   hlProbe.skip || `${hlProbe.lines}줄, 안 고른 낱말 ${hlProbe.bad}개 덮음`],
+  ['하이라이트 줄끼리 겹치지 않는다', hlProbe.skip ? true : hlProbe.overlap === 0,
+   hlProbe.skip || `겹친 줄 ${hlProbe.overlap}쌍`],
+  ['글자를 고르면 색 막대가 뜬다', hlProbe.skip ? true : hlProbe.barShown,
+   hlProbe.skip || (hlProbe.barShown ? '보임' : '뜨지 않음')],
+  ['저장된 하이라이트가 제자리에 그려진다 (확대해도)', hlDraw.worst <= 2,
+   hlDraw.detail ? hlDraw.detail.map((o) => `${o.zoom}%:${o.off}px`).join(' ') : '재지 못함'],
   ['화면이 좁아도 확대가 먹힌다', zp.ratio > 1.8 && zp.ratio < 2.2,
    `창 760px 에서 100%=${zp.narrow}px → 200%=${zp.wide}px (${zp.ratio.toFixed(2)}배)`],
   ['질문에서 물었던 페이지로 갈 수 있다',

@@ -58,7 +58,10 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 
 /* ---------- 좌: 책 ---------- */
 
-#book { display: flex; flex-direction: column; min-width: 320px; flex: 1 1 58%; }
+/* position: relative — #hlBar 가 이 박스를 기준으로 뜬다 (app.js 의 showHlBar 와 짝).
+   static 으로 두면 기준이 #app 으로 올라가, 좌우 분할 비율이 바뀌는 순간 어긋난다. */
+#book { display: flex; flex-direction: column; min-width: 320px; flex: 1 1 58%;
+        position: relative; }
 
 #pageScroll { flex: 1; min-width: 0; overflow: auto; padding: 16px; position: relative;
              user-select: none; -webkit-user-select: none; }
@@ -333,3 +336,92 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 .qaItem th { background: var(--bg); font-weight: 600; white-space: nowrap; }
 .qaItem tbody tr:nth-child(even) { background: rgba(0,0,0,.02); }
 .qaItem td .katex { font-size: 1em; }
+
+/* ===================== 하이라이트 =====================
+   사각형은 이미지 위, 투명 글자 레이어 아래에 깔린다.
+   글자를 가리면 안 되므로 반투명 + mix-blend-mode 로 잉크처럼 얹는다.
+   (불투명하게 칠하면 흑백 지면의 글자가 묻힌다.) */
+.pageBox .hl {
+  position: absolute; inset: 0; z-index: 1;
+  pointer-events: none;                 /* 글자 선택을 막지 않는다 */
+}
+.pageBox .tl { z-index: 2; }
+
+.hlRect {
+  position: absolute; border-radius: 2px;
+  mix-blend-mode: multiply;
+  pointer-events: auto; cursor: pointer;
+}
+.hlRect.c-yellow { background: rgba(255, 221, 87, .55); }
+.hlRect.c-green  { background: rgba(130, 226, 160, .50); }
+.hlRect.c-pink   { background: rgba(255, 160, 190, .48); }
+.hlRect.c-blue   { background: rgba(142, 197, 255, .50); }
+
+/* 메모가 달린 곳은 밑줄로 표시한다 — 눈으로 구분이 되어야 다시 찾는다 */
+.hlRect[title]:not([title=""]) { box-shadow: inset 0 -2px 0 rgba(0,0,0,.35); }
+
+/* --- 글자를 고르면 뜨는 색 막대 */
+#hlBar {
+  position: absolute; z-index: 20;
+  display: flex; gap: 6px; padding: 7px 9px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+#hlBar[hidden] { display: none; }
+
+.swatch {
+  width: 24px; height: 24px; padding: 0; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+}
+.swatch.c-yellow { background: #ffdd57; }
+.swatch.c-green  { background: #82e2a0; }
+.swatch.c-pink   { background: #ffa0be; }
+.swatch.c-blue   { background: #8ec5ff; }
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* --- 형광펜 패널 */
+#hlPanel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#hlPanel[hidden] { display: none; }
+.hl-tools {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 10px; border-bottom: 1px solid var(--line);
+}
+.hl-swatches { display: flex; gap: 6px; }
+.hl-tools .pen { font-size: 12px; color: var(--muted); cursor: pointer; }
+
+#hlList { flex: 1; overflow: auto; padding: 6px 0; }
+#hlList .empty { padding: 20px 14px; font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+
+.hl-group-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px 4px; font-size: 11.5px; font-weight: 700; color: var(--muted);
+}
+.hl-group-head span {
+  font-size: 10.5px; padding: 0 6px; border-radius: 999px;
+  background: var(--accent); color: #fff;
+}
+.hl-item {
+  display: flex; align-items: flex-start; gap: 7px;
+  padding: 6px 8px 6px 10px; cursor: pointer; border-bottom: 1px solid var(--line);
+}
+.hl-item:hover { background: var(--accent-soft); }
+.hl-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; }
+.hl-dot.c-yellow { background: #ffdd57; }
+.hl-dot.c-green  { background: #82e2a0; }
+.hl-dot.c-pink   { background: #ffa0be; }
+.hl-dot.c-blue   { background: #8ec5ff; }
+.hl-body { flex: 1; min-width: 0; }
+.hl-text {
+  font-size: 12.5px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.hl-note { font-size: 11.5px; color: var(--accent); margin-top: 3px; }
+.hl-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.hl-del, .hl-note-btn {
+  flex: 0 0 auto; padding: 1px 6px; font-size: 13px; line-height: 1.4;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+}
+.hl-del:hover, .hl-note-btn:hover { color: var(--accent); }
+
+/* 형광펜 모드에서는 커서로 상태를 알린다 */
+#book.pen-mode #regionOverlay { cursor: crosshair; }

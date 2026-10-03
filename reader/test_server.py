@@ -581,5 +581,81 @@ class TestQuestionIds(unittest.TestCase):
         self.assertIsNone(saved["cropPath"])
 
 
+class Highlights(unittest.TestCase):
+    """하이라이트 저장. 좌표는 150dpi 렌더 픽셀이라 기기·확대율과 무관하다."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qa = Path(self.tmp.name)
+        self.patch = mock.patch.multiple(
+            server, QA=self.qa, HILITE=self.qa / "highlights.json")
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_empty_when_missing(self):
+        self.assertEqual(server.read_highlights(), {"items": []})
+
+    def test_round_trip(self):
+        made = server.add_highlight({
+            "bookPage": 252, "color": "green",
+            "rects": [{"x": 10, "y": 20, "w": 300, "h": 40}], "text": "Grover"})
+        self.assertEqual(server.read_highlights()["items"], [made])
+        self.assertEqual(made["color"], "green")
+        self.assertEqual(made["bookPage"], 252)
+
+    def test_unknown_color_falls_back(self):
+        """색 이름은 CSS 클래스가 된다. 아무 문자열이나 들어오면 스타일이 없어 안 보인다."""
+        made = server.add_highlight(
+            {"bookPage": 1, "color": "'; drop", "rects": [{"x": 0, "y": 0, "w": 9, "h": 9}]})
+        self.assertEqual(made["color"], "yellow")
+
+    def test_degenerate_rects_dropped(self):
+        """끌지 않고 누르기만 하면 0 크기가 온다. 저장하면 안 보이는 쓰레기가 쌓인다."""
+        with self.assertRaises(ValueError):
+            server.add_highlight({"bookPage": 1, "rects": [{"x": 5, "y": 5, "w": 0, "h": 0}]})
+
+    def test_malformed_rects_skipped_not_fatal(self):
+        made = server.add_highlight({"bookPage": 1, "rects": [
+            {"x": "???"}, {"x": 1, "y": 2, "w": 50, "h": 20}]})
+        self.assertEqual(len(made["rects"]), 1)
+
+    def test_rect_cap(self):
+        """한 번에 고른 글자가 많아도 상한을 넘기지 않는다."""
+        many = [{"x": i, "y": i, "w": 10, "h": 10} for i in range(server.HL_MAX_RECTS + 50)]
+        made = server.add_highlight({"bookPage": 1, "rects": many})
+        self.assertEqual(len(made["rects"]), server.HL_MAX_RECTS)
+
+    def test_note_and_delete(self):
+        made = server.add_highlight(
+            {"bookPage": 7, "rects": [{"x": 1, "y": 1, "w": 20, "h": 20}]})
+        server.edit_highlight(made["id"], {"note": "증명 다시 볼 것", "color": "pink"})
+        got = server.read_highlights()["items"][0]
+        self.assertEqual(got["note"], "증명 다시 볼 것")
+        self.assertEqual(got["color"], "pink")
+        server.delete_highlight(made["id"])
+        self.assertEqual(server.read_highlights()["items"], [])
+
+    def test_delete_unknown_raises(self):
+        with self.assertRaises(KeyError):
+            server.delete_highlight("없는아이디")
+
+    def test_broken_file_does_not_break_reading(self):
+        """파일이 깨졌다고 책을 못 읽을 이유는 없다."""
+        (self.qa / "highlights.json").write_text("{ 깨진 json")
+        self.assertEqual(server.read_highlights(), {"items": []})
+
+    def test_concurrent_writes_keep_every_item(self):
+        """맥과 태블릿이 동시에 칠한다. 락이 없으면 read-modify-write 가 서로를 덮는다."""
+        import threading as th
+        def work(i):
+            server.add_highlight(
+                {"bookPage": i, "rects": [{"x": 1, "y": 1, "w": 30, "h": 30}]})
+        threads = [th.Thread(target=work, args=(i,)) for i in range(25)]
+        for t in threads: t.start()
+        for t in threads: t.join()
+        self.assertEqual(len(server.read_highlights()["items"]), 25)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

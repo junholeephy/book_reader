@@ -379,3 +379,18 @@ check_layout.mjs now has 15 assertions. 54 unit tests pass. Documented as IT-10.
 **Context**: Construction — 결함 수정, 브라우저 점검 22개 전부 통과
 
 ---
+## 하이라이트 기능 추가
+**Timestamp**: 2026-10-03T03:30:00Z
+**User Input**: "pdf에 highlight 하는 기능도 추가할 수 있을까?까"
+**AI Response**: "가능. 먼저 p.252 단어 레이어를 실측해 설계 분기를 확인했다 — 'ψ/α/β' 는 남지만 '∑/⟩' 는 0회로, 텍스트 선택만으로는 수식을 칠할 수 없다. 사용자 선택: 입력 방식 '둘 다', 부가 기능 '목록 패널 + 여러 색 + 메모'(질문 첨부는 제외). 저장은 qa/highlights.json, 좌표는 영역 선택과 같은 150dpi 렌더 픽셀."
+**Context**: Construction — 요구사항 확정 (실측 근거 기반 선택지 제시)
+
+---
+
+## 하이라이트 구현 완료
+**Timestamp**: 2026-10-03T03:55:00Z
+**User Input**: (해당 없음 — 위 승인에 따른 구현)
+**AI Response**: "server.py: read/add/edit/delete_highlight + 락 + 원자적 쓰기, 4개 라우트. app.js: 렌더 레이어(.hl), mergeLines(낱말 사각형을 줄로 합침), 선택 색 막대, 형광펜 드래그 모드, 목록 패널. 단위 테스트 94개(10개 추가), 레이아웃 점검 26개(4개 추가) 전부 통과. 역검증: 락 제거/색 검증 제거/0크기 허용/병합 허용치 확대/RENDER_W 오기입 — 다섯 변이 모두 해당 가드가 FAIL. 구현 중 자체 수정 2건: 다크모드 블록(지면이 늘 흰 PNG라 screen 이 틀림) 제거, #book position:relative 고정(hlBar 기준이 #app 으로 새던 것)."
+**Context**: Construction — 코드 생성 및 검증
+
+---

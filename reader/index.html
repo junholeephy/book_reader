@@ -33,6 +33,7 @@
       <button data-testid="book-toc-toggle" id="tocBtn" title="목차 (T)">☰ 목차</button>
       <button data-testid="book-search-toggle" id="searchBtn" title="본문 검색 (/)">🔍 검색</button>
       <button data-testid="book-region-toggle" id="regionBtn" title="수식·그림 영역을 사각형으로 지목">▣ 영역 선택</button>
+      <button data-testid="book-hl-toggle" id="hlBtn" title="형광펜 — 색 고르기 · 칠한 곳 목록 (H)">🖍 형광펜</button>
       <button data-testid="book-text-toggle" id="textBtn" title="추출 텍스트 보기">≡ 텍스트</button>
     </header>
 
@@ -48,6 +49,15 @@
       </div>
       <div data-testid="book-toc-list" id="tocList"></div>
       <div data-testid="book-search-results" id="searchResults" hidden></div>
+      <div data-testid="book-hl-panel" id="hlPanel" hidden>
+        <div class="hl-tools">
+          <div class="hl-swatches" data-testid="book-hl-colors"></div>
+          <label class="pen" title="글자가 아닌 수식·그림을 칠할 때 씁니다">
+            <input data-testid="book-hl-pen" id="hlPen" type="checkbox"> 드래그로 칠하기
+          </label>
+        </div>
+        <div data-testid="book-hl-list" id="hlList"></div>
+      </div>
     </aside>
 
     <!-- 연속 스크롤: 모든 페이지의 자리를 미리 잡아두고,
@@ -61,6 +71,8 @@
       </div>
     </div>
     </div>
+
+    <div data-testid="book-hl-bar" id="hlBar" hidden></div>
 
     <details data-testid="book-extracted-text" id="textPanel">
       <summary>추출 텍스트 (수식은 소실되어 있습니다 — 원본은 위 이미지)</summary>

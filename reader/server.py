@@ -240,6 +240,96 @@ def session_for(chapter: str) -> str:
     return sessions[chapter]
 
 
+# ---------------------------------------------------------------- 하이라이트
+
+HILITE = QA / "highlights.json"
+
+# 맥과 태블릿이 동시에 칠할 수 있다. ThreadingHTTPServer 라 요청마다 스레드가 뜨므로
+# read-modify-write 가 겹치면 한쪽이 통째로 날아간다. 파일 하나라 락 하나로 충분하다.
+_hl_lock = threading.Lock()
+
+HL_COLORS = ("yellow", "green", "pink", "blue")
+HL_MAX_RECTS = 400          # 한 번에 고른 글자가 많아도 이 이상은 그릴 이유가 없다
+
+
+def read_highlights() -> dict:
+    if HILITE.exists():
+        try:
+            data = json.loads(HILITE.read_text())
+        except json.JSONDecodeError:
+            return {"items": []}       # 깨진 파일 때문에 책을 못 읽을 이유는 없다
+        if isinstance(data, dict) and isinstance(data.get("items"), list):
+            return data
+    return {"items": []}
+
+
+def _write_highlights(data: dict) -> None:
+    """같은 디렉터리에 쓰고 교체한다. 쓰는 도중 죽어도 반쪽짜리 파일이 남지 않는다."""
+    tmp = HILITE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    tmp.replace(HILITE)
+
+
+def _clean_rects(raw) -> list:
+    """150dpi 렌더 픽셀 기준의 사각형들. 화면 크기와 무관한 좌표다."""
+    out = []
+    for r in (raw or [])[:HL_MAX_RECTS]:
+        try:
+            x, y = int(r["x"]), int(r["y"])
+            w, h = int(r["w"]), int(r["h"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if w < 2 or h < 2:
+            continue                   # 클릭만 하고 끌지 않은 것
+        out.append({"x": max(0, x), "y": max(0, y), "w": w, "h": h})
+    return out
+
+
+def add_highlight(body: dict) -> dict:
+    rects = _clean_rects(body.get("rects"))
+    if not rects:
+        raise ValueError("칠할 영역이 없습니다")
+    item = {
+        "id": uuid.uuid4().hex[:12],
+        "bookPage": int(body.get("bookPage") or 1),
+        "color": body.get("color") if body.get("color") in HL_COLORS else "yellow",
+        "rects": rects,
+        "text": (body.get("text") or "")[:400],
+        "note": (body.get("note") or "")[:1000],
+        "createdAt": now_iso(),
+    }
+    with _hl_lock:
+        data = read_highlights()
+        data["items"].append(item)
+        _write_highlights(data)
+    return item
+
+
+def edit_highlight(hid: str, body: dict) -> dict:
+    with _hl_lock:
+        data = read_highlights()
+        for it in data["items"]:
+            if it["id"] == hid:
+                if body.get("color") in HL_COLORS:
+                    it["color"] = body["color"]
+                if "note" in body:
+                    it["note"] = (body.get("note") or "")[:1000]
+                _write_highlights(data)
+                return it
+    raise KeyError(hid)
+
+
+def delete_highlight(hid: str) -> dict:
+    with _hl_lock:
+        data = read_highlights()
+        before = len(data["items"])
+        data["items"] = [it for it in data["items"] if it["id"] != hid]
+        if len(data["items"]) == before:
+            raise KeyError(hid)
+        _write_highlights(data)
+    return {"deleted": hid}
+
+
 def read_state() -> dict:
     p = QA / "state.json"
     if p.exists():
@@ -677,6 +767,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"items": load_history(), "pending": pending_count()})
         if parts[1] == "state":
             return self._json(read_state())
+        if parts[1] == "highlights":
+            return self._json(read_highlights())
         if parts[1] == "crop" and len(parts) == 3:
             p = QA / "crops" / f"{parts[2]}.png"
             if p.exists():
@@ -709,6 +801,17 @@ class Handler(BaseHTTPRequestHandler):
                 ans = read_answer(parts[2])
                 enqueue(parts[2], "detail" if ans.get("summary") else "summary")
                 return self._json({"status": "pending", "pending": pending_count()})
+            if path == "/api/highlights":
+                return self._json(add_highlight(self._body()))
+            if parts[1] == "highlights" and len(parts) == 4:
+                hid = parts[2]
+                try:
+                    if parts[3] == "delete":
+                        return self._json(delete_highlight(hid))
+                    if parts[3] == "update":
+                        return self._json(edit_highlight(hid, self._body()))
+                except KeyError:
+                    return self._json({"error": "없는 하이라이트입니다"}, 404)
             if path == "/api/session/reset":
                 body = self._body()
                 state = read_state()
@@ -721,6 +824,8 @@ class Handler(BaseHTTPRequestHandler):
                 write_state(state)
                 return self._json(state)
             self._json({"error": "not found"}, 404)
+        except ValueError as exc:
+            self._json({"error": str(exc)}, 400)
         except Exception as exc:
             self._error(exc, 500)
 

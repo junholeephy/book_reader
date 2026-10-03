@@ -14,6 +14,7 @@ const el = {
   textPanel: $('textPanel'), textPanelBody: $('textPanelBody'),
   thread: $('thread'), status: $('status'), chips: $('contextChips'),
   input: $('questionInput'), hint: $('contextHint'), divider: $('divider'), qa: $('qa'),
+  hlPanel: $('hlPanel'), hlList: $('hlList'), hlBar: $('hlBar'), hlPen: $('hlPen'),
   sidePanel: $('sidePanel'), tocList: $('tocList'), searchInput: $('searchInput'),
   searchResults: $('searchResults'), lensBar: $('lensBar'), lensScope: $('lensScope'),
   slowHint: $('slowHint'), connBanner: $('connBanner'),
@@ -22,6 +23,11 @@ const el = {
 let page = 1;
 let selectedText = null;
 let region = null;          // {page,x,y,w,h} — 150dpi 렌더 이미지 픽셀 기준
+let highlights = [];        // 하이라이트 전부. 좌표는 region 과 같은 150dpi 렌더 픽셀
+let hlByPage = new Map();   // 페이지 -> 그 페이지의 하이라이트 (그릴 때 쓴다)
+let penColor = 'yellow';
+let penMode = false;        // 드래그로 칠하는 중인가 (수식·그림용)
+let selRects = null;        // 고른 글자의 줄별 사각형 — 선택이 지워져도 칠할 수 있게 쥐고 있는다
 let selectedPage = null;    // 선택한 문장이 있는 페이지 (현재 페이지와 다를 수 있다)
 const wordCache = new Map();   // page -> bbox 데이터
 let boxObserver = null;
@@ -189,7 +195,8 @@ function buildPageBoxes() {
     box.className = 'pageBox';
     box.dataset.page = n;
     box.dataset.aspect = DEFAULT_ASPECT;
-    box.innerHTML = `<div class="tl"></div><div class="pageNo">p.${n}</div>`;
+    // 순서가 곧 z 순서다: 이미지(맨 아래) → 하이라이트 → 투명 글자(맨 위, 선택용)
+    box.innerHTML = `<div class="hl"></div><div class="tl"></div><div class="pageNo">p.${n}</div>`;
     frag.appendChild(box);
   }
   el.pages.appendChild(frag);
@@ -257,6 +264,7 @@ async function fillBox(n) {
       box.style.height = `${Math.round(el.pages.clientWidth * aspect)}px`;
     }
     drawTextLayer(n);
+    drawHighlights(n);
   };
   box.insertBefore(img, box.firstChild);
 }
@@ -267,6 +275,7 @@ function emptyBox(n) {
   delete box.dataset.filled;
   box.querySelector('img')?.remove();
   box.querySelector('.tl').innerHTML = '';
+  box.querySelector('.hl').innerHTML = '';
 }
 
 /** 투명 텍스트 레이어. bbox 좌표를 실제 표시 크기로 스케일한다.
@@ -300,7 +309,11 @@ async function drawTextLayer(n) {
 function redrawVisibleLayers() {
   layoutBoxes();
   for (const box of pageBoxes()) {
-    if (box.dataset.filled) drawTextLayer(Number(box.dataset.page));
+    if (box.dataset.filled) {
+      const n = Number(box.dataset.page);
+      drawTextLayer(n);
+      drawHighlights(n);                   // 확대하면 사각형도 같이 커져야 한다
+    }
   }
 }
 
@@ -409,8 +422,283 @@ document.addEventListener('selectionchange', () => {
     // 질문의 맥락은 '고른 자리' 를 따르는 편이 정확하다.
     selectedPage = Number(box.dataset.page);
     renderChips();
+    // 색 막대를 누르는 순간 선택이 사라지는 기기가 있다(터치). 지금 재어둔다.
+    selRects = rectsFromSelection(sel);
+    if (selRects) showHlBar(sel); else hideHlBar();
+  } else {
+    selRects = null; hideHlBar();
   }
 });
+
+// 선택이 풀리면 색 막대도 내린다
+document.addEventListener('pointerdown', (e) => {
+  if (!el.hlBar.hidden && !el.hlBar.contains(e.target)) {
+    const sel = document.getSelection();
+    if (!sel || sel.isCollapsed) { selRects = null; hideHlBar(); }
+  }
+}, true);
+
+// ================================================================ 하이라이트
+//
+// 좌표는 영역 선택과 같은 **150dpi 렌더 픽셀**로 저장한다.
+// 화면 폭·확대율·기기와 무관한 좌표라, 맥에서 칠한 자리가 태블릿에서도 같은 곳이다.
+//
+// 만드는 길은 둘이다:
+//   - 글자를 드래그 → 줄 단위 사각형   (산문)
+//   - 형광펜 모드에서 영역 드래그 → 사각형 하나  (수식·그림)
+// 수식은 pdftotext 가 글리프를 흘려서 투명 글자 레이어에 없다. 그래서 두 번째가 필요하다.
+
+const HL_COLORS = [
+  ['yellow', '노랑'], ['green', '초록'], ['pink', '분홍'], ['blue', '파랑'],
+];
+const RENDER_W = 1328;      // 150dpi 로 렌더한 지면의 가로 픽셀
+
+function indexHighlights() {
+  hlByPage = new Map();
+  for (const h of highlights) {
+    if (!hlByPage.has(h.bookPage)) hlByPage.set(h.bookPage, []);
+    hlByPage.get(h.bookPage).push(h);
+  }
+}
+
+async function loadHighlights() {
+  try {
+    const data = await api('/api/highlights');
+    highlights = data.items || [];
+  } catch { highlights = []; }
+  indexHighlights();
+  redrawHighlights();
+  if (sideMode === 'hl') renderHlList();
+}
+
+function drawHighlights(n) {
+  const box = boxOf(n);
+  const layer = box?.querySelector('.hl');
+  if (!layer) return;
+  const list = hlByPage.get(n);
+  layer.innerHTML = '';
+  if (!list || !box.clientWidth) return;
+  const k = box.clientWidth / RENDER_W;        // 렌더 픽셀 -> 화면 픽셀
+  const frag = document.createDocumentFragment();
+  for (const h of list) {
+    for (const r of h.rects) {
+      const d = document.createElement('div');
+      d.className = `hlRect c-${h.color}`;
+      d.dataset.id = h.id;
+      if (h.note) d.title = h.note;
+      Object.assign(d.style, {
+        left: `${r.x * k}px`, top: `${r.y * k}px`,
+        width: `${r.w * k}px`, height: `${r.h * k}px`,
+      });
+      frag.appendChild(d);
+    }
+  }
+  layer.appendChild(frag);
+}
+
+function redrawHighlights() {
+  for (const box of pageBoxes()) {
+    if (box.dataset.filled) drawHighlights(Number(box.dataset.page));
+  }
+}
+
+/** 화면 좌표 사각형 -> {page, 렌더픽셀 사각형}. 어느 페이지 위인지는 중심점으로 가린다. */
+function toRenderRect(cr) {
+  for (const box of pageBoxes()) {
+    if (!box.clientWidth) continue;
+    const b = box.getBoundingClientRect();
+    const cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
+    if (cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom) {
+      const k = RENDER_W / box.clientWidth;
+      return {
+        page: Number(box.dataset.page),
+        x: Math.round((cr.left - b.left) * k), y: Math.round((cr.top - b.top) * k),
+        w: Math.round(cr.width * k), h: Math.round(cr.height * k),
+      };
+    }
+  }
+  return null;
+}
+
+/** 같은 줄의 조각들을 하나로 잇는다.
+ *  투명 글자 레이어는 **낱말마다** 따로 놓인 span 이라 getClientRects() 가
+ *  낱말 수만큼 사각형을 돌려준다. 그대로 칠하면 낱말 사이가 뚝뚝 끊겨
+ *  형광펜이 아니라 얼룩처럼 보인다. 세로 위치가 겹치면 한 줄로 본다. */
+function mergeLines(rects) {
+  const lines = [];
+  for (const r of [...rects].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const line = lines.find((l) => Math.abs(l.y - r.y) < Math.max(l.h, r.h) * 0.6);
+    if (line) {
+      const right = Math.max(line.x + line.w, r.x + r.w);
+      const bottom = Math.max(line.y + line.h, r.y + r.h);
+      line.x = Math.min(line.x, r.x); line.y = Math.min(line.y, r.y);
+      line.w = right - line.x; line.h = bottom - line.y;
+    } else {
+      lines.push({ ...r });
+    }
+  }
+  return lines;
+}
+
+/** 지금 고른 글자를 페이지별 사각형 묶음으로. 선택이 여러 쪽에 걸칠 수 있다. */
+function rectsFromSelection(sel) {
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  const byPage = new Map();
+  for (const cr of sel.getRangeAt(0).getClientRects()) {
+    if (cr.width < 1 || cr.height < 1) continue;
+    const r = toRenderRect(cr);
+    if (!r) continue;
+    if (!byPage.has(r.page)) byPage.set(r.page, []);
+    byPage.get(r.page).push(r);
+  }
+  if (!byPage.size) return null;
+  return [...byPage.entries()].map(([page, rects]) => ({ page, rects: mergeLines(rects) }));
+}
+
+async function createHighlight(bookPage, rects, text) {
+  const made = await api('/api/highlights', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookPage, rects, text: text || '', color: penColor }),
+  });
+  highlights.push(made);
+  indexHighlights();
+  drawHighlights(bookPage);
+  if (sideMode === 'hl') renderHlList();
+  return made;
+}
+
+/** 고른 글자를 칠한다. 여러 쪽에 걸쳤으면 쪽마다 하나씩 만든다. */
+async function highlightSelection() {
+  const groups = selRects;
+  if (!groups || !groups.length) return;
+  const text = selectedText || '';
+  hideHlBar();
+  document.getSelection()?.removeAllRanges();
+  selRects = null;
+  for (const g of groups) await createHighlight(g.page, g.rects, text);
+}
+
+// --- 고른 글자 옆에 뜨는 색 막대.
+// 툴바에 색을 늘어놓지 않는 이유: 좁은 화면에서 툴바가 이미 줄바꿈된다.
+// 선택이 있을 때만 뜨므로 평소에는 자리를 차지하지 않는다.
+function showHlBar(sel) {
+  const cr = sel.getRangeAt(0).getBoundingClientRect();
+  if (!cr.width && !cr.height) return;
+  if (!el.hlBar.children.length) {
+    for (const [c, name] of HL_COLORS) {
+      const b = document.createElement('button');
+      b.className = `swatch c-${c}`;
+      b.dataset.color = c;
+      b.title = `${name}으로 칠하기`;
+      b.onclick = () => { penColor = c; renderSwatches(); highlightSelection(); };
+      el.hlBar.appendChild(b);
+    }
+  }
+  const bookRect = el.book.getBoundingClientRect();
+  el.hlBar.hidden = false;
+  const bw = el.hlBar.offsetWidth || 160;
+  const left = cr.left - bookRect.left + cr.width / 2 - bw / 2;
+  el.hlBar.style.left = `${Math.max(8, Math.min(bookRect.width - bw - 8, left))}px`;
+  // 선택 아래에 두되, 아래가 잘리면 위로 올린다
+  const below = cr.bottom - bookRect.top + 8;
+  el.hlBar.style.top = `${below + 44 > bookRect.height ? cr.top - bookRect.top - 44 : below}px`;
+}
+
+function hideHlBar() { el.hlBar.hidden = true; }
+
+function renderSwatches() {
+  const host = el.hlPanel.querySelector('.hl-swatches');
+  host.innerHTML = '';
+  for (const [c, name] of HL_COLORS) {
+    const b = document.createElement('button');
+    b.className = `swatch c-${c}${c === penColor ? ' on' : ''}`;
+    b.dataset.color = c;
+    b.title = name;
+    b.onclick = () => { penColor = c; renderSwatches(); };
+    host.appendChild(b);
+  }
+}
+
+function renderHlList() {
+  if (!highlights.length) {
+    el.hlList.innerHTML = `<div class="empty" data-testid="book-hl-empty">
+      아직 칠한 곳이 없습니다.<br>글자를 드래그하거나, 위의 '드래그로 칠하기'로 수식·그림을 칠해보세요.</div>`;
+    return;
+  }
+  const sorted = [...highlights].sort((a, b) => a.bookPage - b.bookPage);
+  const groups = new Map();
+  for (const h of sorted) {
+    const key = ancestors(h.bookPage).slice(-1)[0]?.number ?? '?';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(h);
+  }
+  el.hlList.innerHTML = [...groups.entries()].map(([key, list]) => `
+    <div class="hl-group">
+      <div class="hl-group-head">${escapeHtml(groupLabel(key))}<span>${list.length}</span></div>
+      ${list.map((h) => `
+        <div class="hl-item" data-id="${h.id}" data-testid="book-hl-item">
+          <span class="hl-dot c-${h.color}"></span>
+          <div class="hl-body">
+            <div class="hl-text">${escapeHtml(h.text || '(수식·그림 영역)')}</div>
+            ${h.note ? `<div class="hl-note">${escapeHtml(h.note)}</div>` : ''}
+            <div class="hl-meta">p.${h.bookPage}</div>
+          </div>
+          <button class="hl-note-btn" data-act="note" title="메모">✎</button>
+          <button class="hl-del" data-act="del" title="지우기">×</button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+async function deleteHighlight(id) {
+  await api(`/api/highlights/${id}/delete`, { method: 'POST' });
+  const gone = highlights.find((h) => h.id === id);
+  highlights = highlights.filter((h) => h.id !== id);
+  indexHighlights();
+  if (gone) drawHighlights(gone.bookPage);
+  renderHlList();
+}
+
+async function noteHighlight(id) {
+  const h = highlights.find((x) => x.id === id);
+  if (!h) return;
+  const note = prompt('메모', h.note || '');
+  if (note === null) return;
+  const updated = await api(`/api/highlights/${id}/update`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+  Object.assign(h, updated);
+  indexHighlights();
+  drawHighlights(h.bookPage);
+  renderHlList();
+}
+
+function setupHighlights() {
+  renderSwatches();
+
+  el.hlPen.onchange = (e) => {
+    penMode = e.target.checked;
+    toggleRegionMode(penMode);            // 같은 오버레이를 쓴다
+    el.book.classList.toggle('pen-mode', penMode);
+  };
+
+  el.hlList.addEventListener('click', (e) => {
+    const item = e.target.closest('.hl-item');
+    if (!item) return;
+    const id = item.dataset.id;
+    const act = e.target.dataset.act;
+    if (act === 'del') return void deleteHighlight(id);
+    if (act === 'note') return void noteHighlight(id);
+    const h = highlights.find((x) => x.id === id);
+    if (h) gotoRegion(h.bookPage, h.rects[0]);
+  });
+
+  // 칠한 곳을 바로 눌러도 메모를 달 수 있다
+  el.pages.addEventListener('dblclick', (e) => {
+    const rect = e.target.closest('.hlRect');
+    if (rect) noteHighlight(rect.dataset.id);
+  });
+}
 
 function setupRegionSelect() {
   let start = null, startBox = null;
@@ -459,7 +747,12 @@ function setupRegionSelect() {
     start = null; startBox = null;
     el.regionBox.style.display = 'none';
     if (box.w > 12 && box.h > 12) {
-      region = box; selectedPage = box.page; renderChips(); toggleRegionMode(false);
+      if (penMode) {
+        // 형광펜 모드에서는 계속 칠한다 — 모드를 끄지 않는다
+        createHighlight(box.page, [{ x: box.x, y: box.y, w: box.w, h: box.h }], '');
+      } else {
+        region = box; selectedPage = box.page; renderChips(); toggleRegionMode(false);
+      }
     }
   };
   el.regionOverlay.addEventListener('pointerup', finish);
@@ -471,7 +764,8 @@ function setupRegionSelect() {
 function toggleRegionMode(on) {
   el.book.classList.toggle('region-mode', on);
   el.regionOverlay.hidden = !on;
-  $('regionBtn').classList.toggle('on', on);
+  // 형광펜도 같은 오버레이를 쓴다. 그때 '영역 선택' 에 불이 들어오면 거짓말이 된다.
+  $('regionBtn').classList.toggle('on', on && !penMode);
 }
 
 function renderChips() {
@@ -608,10 +902,15 @@ function openSide(mode) {
   $('tocBtn').classList.toggle('on', sideMode === 'toc');
   $('searchBtn').classList.toggle('on', sideMode === 'search');
   el.searchInput.parentElement.hidden = sideMode !== 'search';
+  $('hlBtn').classList.toggle('on', sideMode === 'hl');
   el.tocList.hidden = sideMode !== 'toc';
   el.searchResults.hidden = sideMode !== 'search';
+  el.hlPanel.hidden = sideMode !== 'hl';
   if (sideMode === 'toc') renderToc();
   if (sideMode === 'search') el.searchInput.focus();
+  if (sideMode === 'hl') renderHlList();
+  // 패널을 닫으면 형광펜도 같이 끈다. 켜둔 채로 잊으면 글자 선택이 안 돼 당황한다.
+  if (sideMode !== 'hl' && penMode) { el.hlPen.checked = false; el.hlPen.onchange({ target: el.hlPen }); }
   // 패널이 본문을 밀어내므로 페이지 폭이 바뀐다.
   // 자리 높이와 텍스트 레이어를 다시 잡고, 보던 페이지로 되돌려 놓는다.
   relayoutKeeping();
@@ -928,13 +1227,18 @@ $('zoomOut').onclick = () => zoomStep(-1);
 $('zoomIn').onclick = () => zoomStep(1);
 $('tocBtn').onclick = () => openSide('toc');
 $('searchBtn').onclick = () => openSide('search');
+$('hlBtn').onclick = () => openSide('hl');
 $('sideClose').onclick = () => openSide(sideMode);
 $('sidePin').onchange = (e) => { autoHideSide = !e.target.checked; };
 
 $('prevBtn').onclick = () => goto(page - 1, { smooth: true });
 $('nextBtn').onclick = () => goto(page + 1, { smooth: true });
 el.pageInput.onchange = () => goto(Number(el.pageInput.value));
-$('regionBtn').onclick = () => toggleRegionMode(el.regionOverlay.hidden);
+$('regionBtn').onclick = () => {
+  const want = el.regionOverlay.hidden || penMode;   // 형광펜 중이면 질문용으로 넘겨받는다
+  if (penMode) { el.hlPen.checked = false; penMode = false; el.book.classList.remove('pen-mode'); }
+  toggleRegionMode(want);
+};
 $('textBtn').onclick = () => {
   el.textPanel.open = !el.textPanel.open;
   if (el.textPanel.open) {
@@ -966,6 +1270,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '-' || e.key === '_') zoomStep(-1);
   if (e.key === '=' || e.key === '+') zoomStep(1);
   if (e.key === 't' || e.key === 'T') openSide('toc');
+  if (e.key === 'h' || e.key === 'H') openSide('hl');
   if (e.key === '/') { e.preventDefault(); openSide('search'); }
 });
 document.addEventListener('keydown', (e) => {
@@ -1001,9 +1306,13 @@ el.divider.addEventListener('mousedown', (e) => {
 (async function init() {
   el.pageRange.textContent = `/ ${MAX_PAGE}`;
   setupRegionSelect();
+  setupHighlights();
   try {
-    const [state, hist, toc] = await Promise.all([
-      api('/api/state'), api('/api/history'), api('/api/toc')]);
+    const [state, hist, toc, hl] = await Promise.all([
+      api('/api/state'), api('/api/history'), api('/api/toc'),
+      api('/api/highlights').catch(() => ({ items: [] }))]);
+    highlights = hl.items || [];
+    indexHighlights();
     tocItems = toc.items || [];
     items = hist.items || [];
     renderThread();
